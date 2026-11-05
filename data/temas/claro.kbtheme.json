@@ -1,0 +1,11 @@
+{
+  "nome": "Claro",
+  "cor_fundo": "#F5F5F5",
+  "cor_tecla": "#FFFFFF",
+  "cor_texto": "#1A1A1A",
+  "cor_tecla_premida": "#FFD54F",
+  "cor_texto_premido": "#000000",
+  "tamanho_fonte": 24,
+  "imagem_fundo": null,
+  "opacidade_imagem": 50
+}
