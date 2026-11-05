@@ -123,7 +123,7 @@ class Sessao(private val chave: ByteArray) {
     fun receber(bytes: ByteArray): Map<String, Any?> {
         val mensagem = Protocolo.descodificarMapa(bytes)
         val tipo = mensagem["tipo"] as? String ?: throw ProtocoloErro("mensagem mal formada")
-        if (tipo !in setOf("emparelhar", "teclados", "acao", "sugestoes", "ping", "pong")) {
+        if (tipo !in setOf("emparelhar", "teclados", "acao", "sugestoes", "interruptores", "ping", "pong")) {
             throw ProtocoloErro("tipo de mensagem desconhecido")
         }
         val recebido = mensagem["hmac"] as? String ?: throw ProtocoloErro("autenticacao falhou")
