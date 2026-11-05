@@ -1,0 +1,27 @@
+{
+  "nome": "Numérico",
+  "idioma": "pt-PT",
+  "linhas": [
+    [
+      {"rotulo": "7", "acao": {"tipo": "texto", "valor": "7"}},
+      {"rotulo": "8", "acao": {"tipo": "texto", "valor": "8"}},
+      {"rotulo": "9", "acao": {"tipo": "texto", "valor": "9"}}
+    ],
+    [
+      {"rotulo": "4", "acao": {"tipo": "texto", "valor": "4"}},
+      {"rotulo": "5", "acao": {"tipo": "texto", "valor": "5"}},
+      {"rotulo": "6", "acao": {"tipo": "texto", "valor": "6"}}
+    ],
+    [
+      {"rotulo": "1", "acao": {"tipo": "texto", "valor": "1"}},
+      {"rotulo": "2", "acao": {"tipo": "texto", "valor": "2"}},
+      {"rotulo": "3", "acao": {"tipo": "texto", "valor": "3"}}
+    ],
+    [
+      {"rotulo": "0", "acao": {"tipo": "texto", "valor": "0"}, "largura": 2},
+      {"rotulo": ",", "acao": {"tipo": "texto", "valor": ","}},
+      {"rotulo": "Apagar", "acao": {"tipo": "tecla", "valor": "backspace"}, "largura": 2},
+      {"rotulo": "Enter", "acao": {"tipo": "tecla", "valor": "enter"}, "largura": 2}
+    ]
+  ]
+}

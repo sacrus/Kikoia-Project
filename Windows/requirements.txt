@@ -1,0 +1,16 @@
+PySide6-Essentials>=6.7
+pytest>=8
+sounddevice>=0.5
+vosk>=0.3.45
+spake2>=0.9
+websockets>=13
+# Bluetooth (Linux): perfil SPP registado no BlueZ via D-Bus
+jeepney>=0.8; sys_platform == "linux"
+# Janela em foco, selecao e area de transferencia (X11): so Linux
+python-xlib>=0.33; sys_platform == "linux"
+# Bluetooth (so Windows): transporte RFCOMM via WinRT
+winrt-runtime>=3.0; sys_platform == "win32"
+winrt-Windows.Devices.Bluetooth; sys_platform == "win32"
+winrt-Windows.Devices.Bluetooth.Rfcomm; sys_platform == "win32"
+winrt-Windows.Networking.Sockets; sys_platform == "win32"
+winrt-Windows.Storage.Streams; sys_platform == "win32"

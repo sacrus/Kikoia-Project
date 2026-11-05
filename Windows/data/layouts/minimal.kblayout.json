@@ -1,0 +1,27 @@
+{
+  "nome": "Minimal",
+  "idioma": "pt-PT",
+  "linhas": [
+    [
+      {"rotulo": "1 .,?!", "acao": {"tipo": "multitoque", "valor": ".,?!"}},
+      {"rotulo": "2 ABC", "acao": {"tipo": "multitoque", "valor": "abc"}},
+      {"rotulo": "3 DEF", "acao": {"tipo": "multitoque", "valor": "def"}}
+    ],
+    [
+      {"rotulo": "4 GHI", "acao": {"tipo": "multitoque", "valor": "ghi"}},
+      {"rotulo": "5 JKL", "acao": {"tipo": "multitoque", "valor": "jkl"}},
+      {"rotulo": "6 MNO", "acao": {"tipo": "multitoque", "valor": "mno"}}
+    ],
+    [
+      {"rotulo": "7 PQRS", "acao": {"tipo": "multitoque", "valor": "pqrs"}},
+      {"rotulo": "8 TUV", "acao": {"tipo": "multitoque", "valor": "tuv"}},
+      {"rotulo": "9 WXYZ", "acao": {"tipo": "multitoque", "valor": "wxyz"}}
+    ],
+    [
+      {"rotulo": "Espaço", "acao": {"tipo": "tecla", "valor": "espaco"}, "largura": 2},
+      {"rotulo": "0", "acao": {"tipo": "texto", "valor": "0"}},
+      {"rotulo": "Apagar", "acao": {"tipo": "tecla", "valor": "backspace"}, "largura": 1.5},
+      {"rotulo": "Enter", "acao": {"tipo": "tecla", "valor": "enter"}, "largura": 1.5}
+    ]
+  ]
+}

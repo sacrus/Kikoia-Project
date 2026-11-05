@@ -1,0 +1,44 @@
+{
+  "nome": "Abecedário",
+  "idioma": "pt-PT",
+  "linhas": [
+    [
+      {"rotulo": "a", "acao": {"tipo": "texto", "valor": "a"}},
+      {"rotulo": "b", "acao": {"tipo": "texto", "valor": "b"}},
+      {"rotulo": "c", "acao": {"tipo": "texto", "valor": "c"}},
+      {"rotulo": "d", "acao": {"tipo": "texto", "valor": "d"}},
+      {"rotulo": "e", "acao": {"tipo": "texto", "valor": "e"}},
+      {"rotulo": "f", "acao": {"tipo": "texto", "valor": "f"}},
+      {"rotulo": "g", "acao": {"tipo": "texto", "valor": "g"}},
+      {"rotulo": "h", "acao": {"tipo": "texto", "valor": "h"}},
+      {"rotulo": "i", "acao": {"tipo": "texto", "valor": "i"}}
+    ],
+    [
+      {"rotulo": "j", "acao": {"tipo": "texto", "valor": "j"}},
+      {"rotulo": "k", "acao": {"tipo": "texto", "valor": "k"}},
+      {"rotulo": "l", "acao": {"tipo": "texto", "valor": "l"}},
+      {"rotulo": "m", "acao": {"tipo": "texto", "valor": "m"}},
+      {"rotulo": "n", "acao": {"tipo": "texto", "valor": "n"}},
+      {"rotulo": "o", "acao": {"tipo": "texto", "valor": "o"}},
+      {"rotulo": "p", "acao": {"tipo": "texto", "valor": "p"}},
+      {"rotulo": "q", "acao": {"tipo": "texto", "valor": "q"}},
+      {"rotulo": "r", "acao": {"tipo": "texto", "valor": "r"}}
+    ],
+    [
+      {"rotulo": "s", "acao": {"tipo": "texto", "valor": "s"}},
+      {"rotulo": "t", "acao": {"tipo": "texto", "valor": "t"}},
+      {"rotulo": "u", "acao": {"tipo": "texto", "valor": "u"}},
+      {"rotulo": "v", "acao": {"tipo": "texto", "valor": "v"}},
+      {"rotulo": "w", "acao": {"tipo": "texto", "valor": "w"}},
+      {"rotulo": "x", "acao": {"tipo": "texto", "valor": "x"}},
+      {"rotulo": "y", "acao": {"tipo": "texto", "valor": "y"}},
+      {"rotulo": "z", "acao": {"tipo": "texto", "valor": "z"}},
+      {"rotulo": "ç", "acao": {"tipo": "texto", "valor": "ç"}}
+    ],
+    [
+      {"rotulo": "Espaço", "acao": {"tipo": "tecla", "valor": "espaco"}, "largura": 4},
+      {"rotulo": "Apagar", "acao": {"tipo": "tecla", "valor": "backspace"}, "largura": 2},
+      {"rotulo": "Enter", "acao": {"tipo": "tecla", "valor": "enter"}, "largura": 2}
+    ]
+  ]
+}

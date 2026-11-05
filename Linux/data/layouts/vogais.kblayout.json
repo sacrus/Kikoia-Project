@@ -1,0 +1,18 @@
+{
+  "nome": "Vogais",
+  "idioma": "pt-PT",
+  "linhas": [
+    [
+      {"rotulo": "A", "acao": {"tipo": "texto", "valor": "a"}, "largura": 2},
+      {"rotulo": "E", "acao": {"tipo": "texto", "valor": "e"}, "largura": 2},
+      {"rotulo": "I", "acao": {"tipo": "texto", "valor": "i"}, "largura": 2},
+      {"rotulo": "O", "acao": {"tipo": "texto", "valor": "o"}, "largura": 2},
+      {"rotulo": "U", "acao": {"tipo": "texto", "valor": "u"}, "largura": 2}
+    ],
+    [
+      {"rotulo": "Apagar", "acao": {"tipo": "tecla", "valor": "backspace"}, "largura": 3},
+      {"rotulo": "Espaço", "acao": {"tipo": "tecla", "valor": "espaco"}, "largura": 3},
+      {"rotulo": "Enter", "acao": {"tipo": "tecla", "valor": "enter"}, "largura": 3}
+    ]
+  ]
+}

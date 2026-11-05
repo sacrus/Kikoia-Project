@@ -1,0 +1,11 @@
+{
+  "nome": "Escuro",
+  "cor_fundo": "#1E1E1E",
+  "cor_tecla": "#333333",
+  "cor_texto": "#FFFFFF",
+  "cor_tecla_premida": "#FFB300",
+  "cor_texto_premido": "#000000",
+  "tamanho_fonte": 24,
+  "imagem_fundo": null,
+  "opacidade_imagem": 50
+}
