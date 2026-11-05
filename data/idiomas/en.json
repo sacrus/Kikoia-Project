@@ -252,6 +252,7 @@
   "tecladofisico.explicacao_6": "(space, punctuation or Enter).<br><br>",
   "tecladofisico.explicacao_7": "A red indicator <b>● Physical keyboard</b> appears whenever it is on.",
   "bluetooth.instalar": "Install the winrt-Windows.Devices.Bluetooth.Rfcomm packages and related ones.",
+  "bluetooth.sem_bluez": "Bluetooth unavailable: the BlueZ service is not running or there is no Bluetooth adapter.",
   "geral.supervisao": "Supervision",
   "sup.codigo_minimo": "Adult code (min. {n} characters)",
   "sup.codigo_pelo_menos": "The code must have at least {n} characters.",

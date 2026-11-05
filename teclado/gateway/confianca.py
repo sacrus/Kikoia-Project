@@ -109,6 +109,17 @@ def _normalizar(texto: str) -> str:
     return limpo
 
 
+def dispositivos_emparelhados() -> set[str] | None:
+    """Nomes e enderecos dos dispositivos Bluetooth emparelhados. None se nao for possivel ler."""
+    if sys.platform == "win32":
+        return dispositivos_emparelhados_windows()
+    if sys.platform.startswith("linux"):
+        from teclado.gateway.bluetooth_linux import dispositivos_emparelhados as emparelhados_linux
+
+        return emparelhados_linux()
+    return None
+
+
 def dispositivos_emparelhados_windows() -> set[str] | None:
     """Nomes e enderecos dos dispositivos Bluetooth emparelhados no Windows. None fora do Windows."""
     if sys.platform != "win32":

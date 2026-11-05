@@ -10,10 +10,20 @@ minima (Sugestoes, Voz, roda dentada). Tudo o resto esta nas Definicoes.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 
-from PySide6.QtCore import QRect, Qt, QTimer
-from PySide6.QtGui import QColor, QGuiApplication, QImage, QPainter, QPixmap
+from PySide6.QtCore import QPointF, QRect, QSize, Qt, QTimer
+from PySide6.QtGui import (
+    QColor,
+    QGuiApplication,
+    QIcon,
+    QImage,
+    QPainter,
+    QPainterPath,
+    QPixmap,
+    QPolygonF,
+)
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -38,6 +48,9 @@ LADO_MAXIMO_IMAGEM = 1600
 # Altura do teclado: parte do ecra, com um minimo para as teclas continuarem legiveis.
 ALTURA_RELATIVA = 0.42
 ALTURA_MINIMA = 260
+# Faixa das sugestoes: reservada enquanto as sugestoes estiverem ativas, mesmo sem palavras,
+# para que as teclas nao mudem de posicao quando aparecem ou desaparecem sugestoes.
+ALTURA_FAIXA_SUGESTOES = 44
 
 
 def carregar_imagem_fundo(caminho) -> QImage | None:
@@ -78,6 +91,31 @@ def _botao_sem_foco(texto: str) -> QPushButton:
     botao = QPushButton(texto)
     botao.setFocusPolicy(Qt.FocusPolicy.NoFocus)
     return botao
+
+
+def _icone_definicoes(cor: str, tamanho: int = 64) -> QIcon:
+    """Roda dentada desenhada, sem depender de um tipo de letra com o simbolo (⚙ falta em varios sistemas)."""
+    pixmap = QPixmap(tamanho, tamanho)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    pintor = QPainter(pixmap)
+    pintor.setRenderHint(QPainter.RenderHint.Antialiasing)
+    centro = tamanho / 2
+    raio_externo, raio_dente, raio_furo = tamanho * 0.46, tamanho * 0.34, tamanho * 0.16
+    pontos = []
+    for dente in range(8):
+        angulo = 2 * math.pi * dente / 8
+        for deslocamento, raio in ((-0.16, raio_dente), (-0.09, raio_externo), (0.09, raio_externo), (0.16, raio_dente)):
+            a = angulo + deslocamento
+            pontos.append(QPointF(centro + raio * math.cos(a), centro + raio * math.sin(a)))
+    caminho = QPainterPath()
+    caminho.setFillRule(Qt.FillRule.OddEvenFill)  # o furo central fica vazio
+    caminho.addPolygon(QPolygonF(pontos))
+    caminho.addEllipse(QPointF(centro, centro), raio_furo, raio_furo)
+    pintor.setPen(Qt.PenStyle.NoPen)
+    pintor.setBrush(QColor(cor))
+    pintor.drawPath(caminho)
+    pintor.end()
+    return QIcon(pixmap)
 
 
 class JanelaTeclado(QWidget):
@@ -124,6 +162,7 @@ class JanelaTeclado(QWidget):
         self._faixa_sugestoes = QWidget()
         self._sugestoes_layout = QHBoxLayout(self._faixa_sugestoes)
         self._sugestoes_layout.setContentsMargins(0, 0, 0, 0)
+        self._faixa_sugestoes.setFixedHeight(ALTURA_FAIXA_SUGESTOES)
         raiz.addWidget(self._faixa_sugestoes)
 
         self._area_teclas = QVBoxLayout()
@@ -157,7 +196,8 @@ class JanelaTeclado(QWidget):
         self._botao_ditar.setEnabled(False)
         self._botao_ditar.toggled.connect(lambda ativo: self._ao_ditar_toggle(ativo))
 
-        self._botao_definicoes = _botao_sem_foco("⚙")
+        self._botao_definicoes = _botao_sem_foco("")
+        self._botao_definicoes.setIconSize(QSize(26, 26))
         self._botao_definicoes.setFixedSize(40, 40)
         self._botao_definicoes.setToolTip(t("janela.definicoes_dica"))
         self._botao_definicoes.clicked.connect(lambda _=False: self._pedir_definicoes())
@@ -303,7 +343,7 @@ class JanelaTeclado(QWidget):
                 botao.show()
             else:
                 botao.hide()
-        self._faixa_sugestoes.setVisible(bool(palavras) and self._sugestoes_ativas)
+        self._faixa_sugestoes.setVisible(self._sugestoes_ativas)
         self._sincronizar_modificadores()
 
     def _sincronizar_modificadores(self) -> None:
@@ -318,6 +358,7 @@ class JanelaTeclado(QWidget):
         self.setStyleSheet(folha_de_estilo(tema))
         for interruptor in self._interruptores:
             interruptor.definir_cores(tema.cor_tecla, tema.cor_texto)
+        self._botao_definicoes.setIcon(_icone_definicoes(tema.cor_texto))
         self._atualizar_cache_imagem()
         self.update()
 

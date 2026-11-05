@@ -13,6 +13,7 @@ from teclado.core.saida.windows import (
 )
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="DWORD/c_ulong tem tamanhos diferentes fora do Windows")
 def test_tamanho_struct_input_correto():
     esperado = 40 if sys.maxsize > 2**32 else 28
     assert ctypes.sizeof(INPUT) == esperado

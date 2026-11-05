@@ -252,6 +252,7 @@
   "tecladofisico.explicacao_6": "(espaço, pontuação ou Enter).<br><br>",
   "tecladofisico.explicacao_7": "Um indicador vermelho <b>● Teclado físico</b> aparece sempre que está ativo.",
   "bluetooth.instalar": "Instale os pacotes winrt-Windows.Devices.Bluetooth.Rfcomm e afins.",
+  "bluetooth.sem_bluez": "Bluetooth indisponível: o serviço BlueZ não está a correr ou não há adaptador Bluetooth.",
   "geral.supervisao": "Supervisão",
   "sup.codigo_minimo": "Código do adulto (mín. {n} caracteres)",
   "sup.codigo_pelo_menos": "O código deve ter pelo menos {n} caracteres.",

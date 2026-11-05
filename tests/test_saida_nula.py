@@ -4,8 +4,13 @@ from teclado.core.saida import criar_saida
 from teclado.core.saida.nula import SaidaNula
 
 
-def test_linux_usa_saida_sem_injecao(monkeypatch):
+def test_linux_sem_uinput_usa_saida_sem_injecao(monkeypatch):
+    class SemPermissao:
+        def __init__(self):
+            raise RuntimeError("Sem acesso a /dev/uinput")
+
     monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr("teclado.core.saida.linux.SaidaLinux", SemPermissao)
     saida = criar_saida()
     assert isinstance(saida, SaidaNula)
 

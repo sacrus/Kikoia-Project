@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import sys
 from typing import Protocol
+
+log = logging.getLogger(__name__)
 
 # Nomes de teclas especiais independentes do sistema operativo.
 TECLAS_ESPECIAIS = frozenset(
@@ -60,7 +63,13 @@ def criar_saida() -> Saida:
         from .windows import SaidaWindows
 
         return SaidaWindows()
-    # Linux: ainda sem injecao de teclas (fase 8). A interface funciona, sem escrever noutras apps.
     from .nula import SaidaNula
 
-    return SaidaNula()
+    try:
+        from .linux import SaidaLinux
+
+        return SaidaLinux()
+    except RuntimeError as erro:
+        # Sem permissao para /dev/uinput: a interface funciona, sem escrever noutras apps.
+        log.error("Injecao de teclas indisponivel: %s Execute tools/configurar_teclado_linux.sh.", erro)
+        return SaidaNula()

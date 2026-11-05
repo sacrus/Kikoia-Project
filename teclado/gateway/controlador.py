@@ -1,18 +1,23 @@
 """Ciclo de vida do gateway dentro da aplicacao: ligar, desligar, codigo, estado e difusao.
 
-Transportes: "wifi" (WebSocket + UDP, porta configuravel) e "bluetooth" (RFCOMM, Windows).
+Transportes: "wifi" (WebSocket + UDP, porta configuravel) e "bluetooth" (RFCOMM, Windows ou Linux/BlueZ).
 O servidor cria-se de cada vez que se liga. Os callbacks chegam da thread do gateway:
 quem os usa deve reencaminhar para a thread do Qt.
 """
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Callable
 from typing import Any
 
-from teclado.gateway.bluetooth import ServidorBluetooth, disponivel as bluetooth_disponivel
 from teclado.gateway.confianca import RepositorioConfianca
 from teclado.gateway.servidor import PORTA_POR_OMISSAO, NucleoGateway, ServidorGateway
+
+if sys.platform == "win32":
+    from teclado.gateway.bluetooth import ServidorBluetooth, disponivel as bluetooth_disponivel
+else:
+    from teclado.gateway.bluetooth_linux import ServidorBluetooth, disponivel as bluetooth_disponivel
 
 TRANSPORTE_WIFI = "wifi"
 TRANSPORTE_BLUETOOTH = "bluetooth"

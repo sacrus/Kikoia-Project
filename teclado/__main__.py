@@ -1,7 +1,9 @@
 """Arranque: py -m teclado"""
 
 from teclado.core.idiomas import t
+import ctypes
 import logging
+import os
 import socket
 import threading
 import sys
@@ -51,7 +53,7 @@ from teclado.gateway.acoes import aplicar_acao_remota
 from teclado.core import arranque, atualizacao, idiomas
 from teclado.ui.atualizacoes import DialogoAtualizacoes
 from teclado.ui.instancia import ServidorInstancia, ja_em_execucao
-from teclado.gateway.confianca import RepositorioConfianca, dispositivos_emparelhados_windows, pode_ser_emparelhado
+from teclado.gateway.confianca import RepositorioConfianca, dispositivos_emparelhados, pode_ser_emparelhado
 from teclado.gateway.controlador import ControladorGateway
 from teclado.core.layout_editor import modelo_de
 from teclado.ui.gateway_opcoes import DialogoGateway
@@ -72,7 +74,21 @@ def _registar_erros(pasta):
     return caminho
 
 
+def _escolher_plataforma_grafica() -> None:
+    """No Linux, usa XWayland (xcb) por omissao: o Wayland nao deixa a janela do teclado ficar por cima
+    nem sem roubar o foco, e o xcb respeita isso. Se faltarem bibliotecas xcb, fica o Wayland."""
+    if not sys.platform.startswith("linux") or "QT_QPA_PLATFORM" in os.environ or not os.environ.get("DISPLAY"):
+        return
+    for biblioteca in ("libxcb-cursor.so.0", "libxcb-icccm.so.4", "libxcb-keysyms.so.1"):
+        try:
+            ctypes.CDLL(biblioteca)
+        except OSError:
+            return
+    os.environ["QT_QPA_PLATFORM"] = "xcb"
+
+
 def main() -> int:
+    _escolher_plataforma_grafica()
     qt = QApplication(sys.argv)
     # Uma so instancia: a segunda pede a primeira para se mostrar e termina.
     if ja_em_execucao():
@@ -423,6 +439,8 @@ def main() -> int:
             if motivo == QSystemTrayIcon.ActivationReason.Trigger else None
         )
         tray.show()
+        # Com o teclado escondido (ligado ao telemovel), so o icone fica visivel: nao e para terminar.
+        qt.setQuitOnLastWindowClosed(False)
 
     instancia.pedido_mostrar.connect(mostrar_teclado)
 
@@ -513,14 +531,14 @@ def main() -> int:
     tempo_escuta.timeout.connect(terminar_escuta)
 
     def arrancar_escuta() -> None:
-        # Bluetooth se o telemovel de confianca estiver emparelhado no Windows; senao, Wi-Fi.
+        # Bluetooth se o telemovel de confianca estiver emparelhado no sistema; senao, Wi-Fi.
         if not controlador._auto_iniciar or gateway.ativo:
             return
         guardados = confianca.nomes()
         if not guardados:
             return
         porta = controlador.preferencias_gateway()["porta"]
-        if pode_ser_emparelhado(guardados, dispositivos_emparelhados_windows()):
+        if pode_ser_emparelhado(guardados, dispositivos_emparelhados()):
             try:
                 gateway.ligar(porta=porta, transporte="bluetooth")
             except RuntimeError as erro:

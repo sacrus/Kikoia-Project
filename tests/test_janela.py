@@ -105,7 +105,8 @@ def test_montar_outro_layout_reconstroi_teclas(app):
 def test_barra_minima_so_tem_sugestoes_voz_e_definicoes(app):
     janela = _janela(_Saida())
     textos = {b.text() for b in janela.findChildren(QPushButton)}
-    assert "⚙" in textos and "Sugestões" in textos and "Falar" in textos and "Ditar" in textos
+    assert janela._botao_definicoes in janela.findChildren(QPushButton)
+    assert "Sugestões" in textos and "Falar" in textos and "Ditar" in textos
     assert "Layout" not in textos and "Tema" not in textos and "Personalizar" not in textos
     janela.close()
 
@@ -127,7 +128,7 @@ def test_engrenagem_pede_definicoes(app):
     tema = descobrir_temas([DADOS_PROJETO / "temas"])["Claro"]
     janela = JanelaTeclado(Editor(_Saida(), Dicionario()), layout, tema,
                            ao_definicoes=lambda: chamadas.append(1))
-    _botao(janela, "⚙").click()
+    janela._botao_definicoes.click()
     app.processEvents()
     assert chamadas == [1]
     janela.close()

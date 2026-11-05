@@ -252,6 +252,7 @@
   "tecladofisico.explicacao_6": "(espace, ponctuation ou Entrée).<br><br>",
   "tecladofisico.explicacao_7": "Un indicateur rouge <b>● Clavier physique</b> apparaît dès qu'il est activé.",
   "bluetooth.instalar": "Installez les paquets winrt-Windows.Devices.Bluetooth.Rfcomm et associés.",
+  "bluetooth.sem_bluez": "Bluetooth indisponible : le service BlueZ ne fonctionne pas ou il n'y a pas d'adaptateur Bluetooth.",
   "geral.supervisao": "Supervision",
   "sup.codigo_minimo": "Code de l'adulte (min. {n} caractères)",
   "sup.codigo_pelo_menos": "Le code doit comporter au moins {n} caractères.",
