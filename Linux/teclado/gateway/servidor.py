@@ -25,6 +25,7 @@ from typing import Any
 
 from spake2 import SPAKE2_B
 from websockets.asyncio.server import serve
+from websockets.exceptions import ConnectionClosed
 
 from teclado.core.idiomas import t
 from teclado.gateway.confianca import RepositorioConfianca, chave_reconhecimento, derivar, prova
@@ -140,13 +141,17 @@ class NucleoGateway:
 
     async def _enviar_a_todos(self, fabrica: Callable[[Sessao], bytes | None]) -> None:
         for canal, sessao in list(self._sessoes.values()):
-            dados = fabrica(sessao)
-            if dados is None:
-                continue
+            # Cada telemovel e tratado a parte: um erro num nao pode impedir os outros de receber.
             try:
+                dados = fabrica(sessao)
+                if dados is None:
+                    continue
                 await canal.send(dados)
-            except (ConnectionError, OSError):
+            except (ConnectionError, OSError, ConnectionClosed):
                 log.info("Telemovel desligado durante a difusao")
+            except Exception:
+                # Sem isto, o erro ficava guardado na tarefa e ninguem o via.
+                log.error("Falha ao enviar mensagem a um telemovel", exc_info=True)
 
     def _mensagem_teclado(self, sessao: Sessao, modelo: dict[str, Any]) -> bytes | None:
         try:
