@@ -23,7 +23,12 @@ from teclado.core.layout import LayoutInvalido, validar_layout, validar_tecla
 from teclado.core.saida import ACOES_EDICAO
 
 TAMANHO_MAXIMO = 16 * 1024
-TIPOS = frozenset({"emparelhar", "teclados", "acao", "sugestoes", "escolher_sugestao", "ping", "pong"})
+TIPOS = frozenset({
+    "emparelhar", "teclados", "acao", "sugestoes", "escolher_sugestao", "ping", "pong",
+    # Interruptores Falar e Ditar: o telemovel pede (interruptor) e o PC devolve o estado (interruptores).
+    "interruptor", "interruptores",
+})
+INTERRUPTORES = frozenset({"falar", "ditar"})
 TIPOS_ACAO_REMOTA = frozenset({"texto", "tecla", "acento", "multitoque", "modificador", "acao", "navegar", "comando"})
 MAX_LAYOUTS = 50
 MAX_SUGESTOES = 10
@@ -95,6 +100,17 @@ def _validar_corpo(tipo: str, msg: dict[str, Any]) -> None:
         indice = msg.get("indice")
         if not isinstance(indice, int) or isinstance(indice, bool) or not 0 <= indice < MAX_SUGESTOES:
             raise ProtocoloErro("indice de sugestao invalido")
+        return
+
+    if tipo == "interruptor":
+        if msg.get("nome") not in INTERRUPTORES or not isinstance(msg.get("ligado"), bool):
+            raise ProtocoloErro("interruptor invalido")
+        return
+
+    if tipo == "interruptores":
+        for chave in ("falar", "falar_disponivel", "ditar", "ditar_disponivel"):
+            if not isinstance(msg.get(chave), bool):
+                raise ProtocoloErro("estado de interruptores invalido")
         return
 
     if tipo == "sugestoes":

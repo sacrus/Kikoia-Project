@@ -35,8 +35,10 @@ class ControladorGateway:
         fornecer_sugestoes: Callable[[], list[str]] | None = None,
         confianca: RepositorioConfianca | None = None,
         ao_emparelhar_novo: Callable[[str], None] | None = None,
+        fornecer_interruptores: Callable[[], dict[str, Any]] | None = None,
     ) -> None:
         self._nome = nome
+        self._fornecer_interruptores = fornecer_interruptores
         self._ao_acao = ao_acao
         self._ao_ligar = ao_ligar
         self._ao_desligar = ao_desligar
@@ -70,6 +72,7 @@ class ControladorGateway:
             fornecer_sugestoes=self._fornecer_sugestoes,
             confianca=self._confianca,
             ao_emparelhar_novo=self._ao_emparelhar_novo,
+            fornecer_interruptores=self._fornecer_interruptores,
         )
         if transporte == TRANSPORTE_BLUETOOTH:
             motivo = bluetooth_disponivel()
@@ -103,6 +106,10 @@ class ControladorGateway:
     def atualizar_sugestoes(self, palavras: list[str]) -> None:
         if self.ativo:
             self._servidor.atualizar_sugestoes(palavras)
+
+    def atualizar_interruptores(self, estado: dict[str, Any]) -> None:
+        if self.ativo:
+            self._servidor.atualizar_interruptores(estado)
 
     def estado(self) -> dict[str, Any]:
         if not self.ativo:

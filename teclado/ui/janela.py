@@ -37,7 +37,9 @@ from teclado.core.editor import Editor
 from teclado.core.idiomas import t
 from teclado.core.layout import Layout, Tecla
 from teclado.core.tema import Tema
+from teclado.core.rotulos import rotulo_tecla
 from teclado.ui.appbar import BarraInferior
+from teclado.ui.botao_tecla import BotaoTecla
 from teclado.ui.interruptor import Interruptor
 from teclado.ui.medidor import Medidor
 
@@ -129,6 +131,7 @@ class JanelaTeclado(QWidget):
         ao_navegar: Callable[[str], object] | None = None,
         ancorar_fundo: bool = True,
         ao_comando: Callable[[str], object] | None = None,
+        ao_fechar: Callable[[], object] | None = None,
     ) -> None:
         super().__init__(
             None,
@@ -143,6 +146,7 @@ class JanelaTeclado(QWidget):
         self._ao_definicoes = ao_definicoes or (lambda: None)
         self._ao_navegar = ao_navegar or (lambda nome: None)
         self._ao_comando = ao_comando or (lambda id_: None)
+        self._ao_fechar = ao_fechar or (lambda: None)
         self._ancorar_fundo = ancorar_fundo
         self._barra = BarraInferior()
         self._ao_falar_toggle: Callable[[bool], None] = lambda ativo: None
@@ -155,6 +159,8 @@ class JanelaTeclado(QWidget):
         self._imagem: QImage | None = None  # original, ja reduzida ao carregar
         self._imagem_escalada: QPixmap | None = None  # cache para o tamanho atual
         self._opacidade = 1.0
+        self._tamanho_fonte = tema.tamanho_fonte
+        self._botoes_teclas: list[BotaoTecla] = []
 
         raiz = QVBoxLayout(self)
         raiz.setContentsMargins(6, 6, 6, 6)
@@ -295,10 +301,12 @@ class JanelaTeclado(QWidget):
         Antes, o tamanho minimo fixo e a politica por omissao impediam que a
         largura da tecla fosse respeitada.
         """
-        botao = _botao_sem_foco(texto)
+        botao = BotaoTecla(texto, self._tamanho_fonte)
+        botao.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         botao.setMinimumSize(24, 24)
         botao.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         botao.clicked.connect(lambda _=False: ao_premir())
+        self._botoes_teclas.append(botao)
         return botao
 
     def montar(self, layout: Layout) -> None:
@@ -311,6 +319,7 @@ class JanelaTeclado(QWidget):
                 antiga.setParent(None)  # sai da arvore ja; apaga-se no proximo ciclo
                 antiga.deleteLater()
         self._botoes_modificador.clear()
+        self._botoes_teclas.clear()
 
         for linha in layout.linhas:
             fila = QWidget()
@@ -318,7 +327,8 @@ class JanelaTeclado(QWidget):
             horizontal.setContentsMargins(0, 0, 0, 0)
             horizontal.setSpacing(6)
             for tecla in linha:
-                botao = self._botao_tecla(tecla.rotulo, lambda t=tecla: self._premir(t))
+                rotulo = rotulo_tecla(tecla.acao.tipo, tecla.acao.valor, tecla.rotulo)
+                botao = self._botao_tecla(rotulo, lambda t=tecla: self._premir(t))
                 if tecla.acao.tipo == "modificador":
                     botao.setCheckable(True)
                     self._botoes_modificador[tecla.acao.valor] = botao
@@ -353,6 +363,9 @@ class JanelaTeclado(QWidget):
 
     def aplicar_tema(self, tema: Tema) -> None:
         self._cor_fundo = QColor(tema.cor_fundo)
+        self._tamanho_fonte = tema.tamanho_fonte
+        for botao in self._botoes_teclas:
+            botao.definir_tamanho_base(tema.tamanho_fonte)
         self._imagem = carregar_imagem_fundo(tema.imagem_fundo) if tema.imagem_fundo else None
         self._opacidade = tema.opacidade_imagem / 100
         self.setStyleSheet(folha_de_estilo(tema))
@@ -445,6 +458,11 @@ class JanelaTeclado(QWidget):
         finally:
             if estava_visivel and not self._recolher_no_fim:
                 self.show()
+
+    def closeEvent(self, evento) -> None:  # noqa: N802 (nome exigido pelo Qt)
+        # O X fecha o Kikoia por completo. Sem isto, so a janela saia e o processo ficava a correr.
+        self._ao_fechar()
+        super().closeEvent(evento)
 
     def recolher_definitivamente(self) -> None:
         """Esconde o teclado mesmo que um dialogo o tenha recolhido (ex.: o telemovel ligou-se)."""

@@ -20,7 +20,7 @@ from .paths import RAIZ
 
 VERSAO = "0.1.0"
 # "dono/repositorio" no GitHub. Enquanto estiver a None, a verificacao do teclado fica desativada.
-REPOSITORIO: str | None = None
+REPOSITORIO: str | None = "sacrus/Kikoia-Project"
 TIMEOUT_S = 8
 REQUISITOS = RAIZ / "requirements.txt"
 
@@ -70,7 +70,7 @@ def nomes_dependencias(ficheiro: Path = REQUISITOS) -> list[str]:
 
 
 def _json(url: str) -> dict[str, Any]:
-    pedido = urllib.request.Request(url, headers={"User-Agent": f"TecladoRemoto/{VERSAO}"})
+    pedido = urllib.request.Request(url, headers={"User-Agent": f"Kikoia/{VERSAO}"})
     with urllib.request.urlopen(pedido, timeout=TIMEOUT_S) as resposta:
         return json.loads(resposta.read().decode("utf-8"))
 
@@ -98,6 +98,8 @@ def verificar_dependencias(
     desatualizado.
     """
     resultados = []
+    if nomes is None and empacotado():
+        return resultados
     for nome in nomes if nomes is not None else nomes_dependencias():
         try:
             recente = versao_pypi(nome, buscar)
@@ -109,6 +111,11 @@ def verificar_dependencias(
 
 def teclado_configurado() -> bool:
     return REPOSITORIO is not None
+
+
+def empacotado() -> bool:
+    """True no executavel (PyInstaller): nao ha pip, por isso as dependencias nao se atualizam aqui."""
+    return bool(getattr(sys, "frozen", False))
 
 
 def verificar_teclado(buscar: Callable[[str], dict[str, Any]] = _json) -> Atualizacao | None:

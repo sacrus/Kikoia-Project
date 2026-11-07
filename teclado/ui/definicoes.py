@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox,
     QCheckBox,
@@ -16,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from teclado.core import idiomas
+from teclado.core.atualizacao import VERSAO
 from teclado.core.idiomas import t
 
 ACAO_NENHUMA = ""
@@ -134,6 +136,13 @@ class DialogoDefinicoes(QDialog):
         raiz.addWidget(botao_atualizacoes)
         raiz.addWidget(botao_supervisao)
         raiz.addWidget(caixa)
+        rodape = QLabel(
+            f"Versão {VERSAO} · Projeto Desenvolvido por: Luís Patrício<br>"
+            '<a href="https://www.lplogic.net">www.lplogic.net</a>'
+        )
+        rodape.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        rodape.setOpenExternalLinks(True)
+        raiz.addWidget(rodape)
 
     def _acionar(self, acao: str) -> None:
         self._acao = acao

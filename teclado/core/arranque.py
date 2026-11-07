@@ -11,7 +11,8 @@ from pathlib import Path
 
 from .paths import RAIZ
 
-NOME = "TecladoRemoto"
+NOME = "Kikoia"
+NOME_ANTIGO = "TecladoRemoto"  # entrada criada por versoes anteriores; removida ao gravar a nova
 CHAVE_WINDOWS = r"Software\Microsoft\Windows\CurrentVersion\Run"
 FICHEIRO_LINUX = "teclado-remoto.desktop"
 
@@ -47,6 +48,7 @@ def ativado() -> bool:
 def definir(ativo: bool, raiz: Path = RAIZ) -> None:
     """Liga ou desliga o arranque com o sistema. Lanca OSError se o sistema recusar."""
     if sys.platform == "win32":
+        _win_apagar(NOME_ANTIGO)
         if ativo:
             _win_gravar(NOME, comando_arranque(raiz))
         else:
@@ -77,7 +79,7 @@ def _entrada_desktop(comando: str) -> str:
     return (
         "[Desktop Entry]\n"
         "Type=Application\n"
-        "Name=Teclado Remoto\n"
+        "Name=Kikoia\n"
         f"Exec={comando}\n"
         "X-GNOME-Autostart-enabled=true\n"
     )

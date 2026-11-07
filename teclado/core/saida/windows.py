@@ -42,7 +42,7 @@ SW_MAXIMIZE = 3
 
 # Teclas usadas nos atalhos de edicao (nomes de MAPA_TECLAS_ATALHO).
 _VK_ATALHO = {
-    "ctrl": 0x11, "shift": 0x10, "home": 0x24, "end": 0x23,
+    "ctrl": 0x11, "shift": 0x10, "alt": 0x12, "home": 0x24, "end": 0x23,
     "left": 0x25, "right": 0x27, "c": 0x43,
 }
 _EXTENDIDAS_ATALHO = frozenset({"home", "end", "left", "right"})

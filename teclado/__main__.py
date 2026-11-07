@@ -5,8 +5,10 @@ import ctypes
 import logging
 import os
 import socket
+import subprocess
 import threading
 import sys
+import time
 import traceback
 
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
@@ -15,7 +17,8 @@ from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QStyle, QSystemT
 from teclado.core.aplicacao import Aplicacao
 from teclado.core.dicionario import Dicionario
 from teclado.core.editor import Editor
-from teclado.core.paths import DADOS_PROJETO, pasta_dados_utilizador
+from teclado.core.paths import DADOS_PROJETO, RAIZ, pasta_dados_utilizador
+from teclado.core.reinicio import ARGUMENTO, comando_do_processo
 from teclado.core.perfil import RepositorioPerfis, criar_perfil
 from teclado.core.captura_teclado import CapturaTeclado
 from teclado.core.ia import carregar_config, guardar_config
@@ -74,6 +77,17 @@ def _registar_erros(pasta):
     return caminho
 
 
+# Nome do produto nas notificacoes, na janela e no sistema (nao depende do idioma).
+NOME_APP = "Kikoia"
+
+
+def _processo_destacado() -> dict:
+    """Opcoes do Popen para o processo novo continuar depois de esta instancia terminar."""
+    if sys.platform == "win32":
+        return {"creationflags": subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP}
+    return {"start_new_session": True}
+
+
 def _escolher_plataforma_grafica() -> None:
     """No Linux, usa XWayland (xcb) por omissao: o Wayland nao deixa a janela do teclado ficar por cima
     nem sem roubar o foco, e o xcb respeita isso. Se faltarem bibliotecas xcb, fica o Wayland."""
@@ -90,6 +104,19 @@ def _escolher_plataforma_grafica() -> None:
 def main() -> int:
     _escolher_plataforma_grafica()
     qt = QApplication(sys.argv)
+    qt.setApplicationName(NOME_APP)
+    if sys.platform == "win32":
+        # Sem isto, as notificacoes do Windows mostram o nome do interprete ("Python").
+        import ctypes
+
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(NOME_APP)
+    # Reinicio pedido pela instancia anterior (ex.: mudanca de idioma): espera que ela liberte o servidor.
+    if ARGUMENTO in sys.argv:
+        for _ in range(60):
+            if not ja_em_execucao():
+                break
+            time.sleep(0.25)
+        time.sleep(1.0)
     # Uma so instancia: a segunda pede a primeira para se mostrar e termina.
     if ja_em_execucao():
         return 0
@@ -190,6 +217,16 @@ def main() -> int:
         if sintese is not None and controlador.preferencias_voz()["falar"]:
             sintese.falar(texto)
 
+    def estado_interruptores() -> dict:
+        # Falar e Ditar tambem se mostram no telemovel (ver interruptores no protocolo).
+        prefs = controlador.preferencias_voz()
+        return {
+            "falar": bool(prefs["falar"]) and motivo_falar is None,
+            "falar_disponivel": motivo_falar is None,
+            "ditar": bool(ditado and ditado.ativo),
+            "ditar_disponivel": motivo_ditar is None,
+        }
+
     def sincronizar_voz() -> None:
         prefs = controlador.preferencias_voz()
         editor.falar_palavra = prefs["ler_palavra"]
@@ -203,6 +240,14 @@ def main() -> int:
             ao_falar=alternar_falar,
             ao_ditar=alternar_ditar,
         )
+        gateway.atualizar_interruptores(estado_interruptores())
+
+    def alternar_interruptor(nome: str, ligado: bool) -> None:
+        # Pedido do telemovel: so muda se o recurso estiver disponivel no PC.
+        if nome == "falar" and motivo_falar is None:
+            alternar_falar(ligado)
+        elif nome == "ditar" and motivo_ditar is None and ditado is not None:
+            alternar_ditar(ligado)
 
     def alternar_falar(ligado: bool) -> None:
         controlador.alternar_falar(ligado)
@@ -317,7 +362,11 @@ def main() -> int:
             controlador.definir_verificar_atualizacoes(escolhas["verificar_atualizacoes"])
         if escolhas["idioma"] != controlador.idioma:
             if controlador.definir_idioma(escolhas["idioma"]):
-                QMessageBox.information(None, idiomas.t("geral.idioma"), idiomas.t("definicoes.idioma_aviso"))
+                pergunta = QMessageBox.question(
+                    None, idiomas.t("geral.idioma"), idiomas.t("definicoes.idioma_reiniciar"),
+                )
+                if pergunta == QMessageBox.StandardButton.Yes:
+                    reiniciar_aplicacao()
         if escolhas["auto_iniciar"] != controlador._auto_iniciar:
             controlador.definir_auto_iniciar(escolhas["auto_iniciar"])
         if escolhas["arranque_sistema"] != arranque.ativado():
@@ -411,6 +460,16 @@ def main() -> int:
         # Tudo corre dentro de sem_sobreposicao: o teclado fica recolhido ate o fim.
         janela.sem_sobreposicao(fluxo)
 
+    def sair() -> None:
+        # Fechar o teclado (X) termina a aplicacao por completo: nada fica em segundo plano.
+        qt.quit()
+
+    def reiniciar_aplicacao() -> None:
+        # A nova instancia so arranca depois de esta libertar o servidor (ver ARGUMENTO).
+        instancia.fechar()
+        subprocess.Popen(comando_do_processo(), cwd=str(RAIZ), **_processo_destacado())
+        qt.quit()
+
     janela = JanelaTeclado(
         editor,
         controlador.layout,
@@ -418,6 +477,7 @@ def main() -> int:
         ao_definicoes=abrir_definicoes,
         ao_navegar=navegar,
         ao_comando=lambda id_: executar_por_id(id_),  # resolvido ao premir, nao na criacao
+        ao_fechar=sair,
     )
     # Ao mostrar, a janela ancora-se no fundo do ecra e reserva essa area (ver ui/appbar.py).
 
@@ -468,7 +528,7 @@ def main() -> int:
 
     def notificar(texto: str) -> None:
         if tray is not None:
-            tray.showMessage("Teclado", texto)
+            tray.showMessage(NOME_APP, texto)
 
     def executar_por_id(id_: str) -> None:
         # So executa teclas guardadas no PC: o telemovel nunca envia texto de comando.
@@ -486,6 +546,9 @@ def main() -> int:
 
     def tratar_remoto(msg: dict) -> None:
         # Chega ja na thread do Qt (sinal). Navegacao e sugestoes mudam o estado do PC.
+        if msg["tipo"] == "interruptor":
+            alternar_interruptor(msg["nome"], msg["ligado"])
+            return
         if msg["tipo"] == "escolher_sugestao":
             editor.usar_sugestao(msg["indice"])
             return
@@ -510,6 +573,7 @@ def main() -> int:
         ao_desligar=ponte_gw.desligado.emit,
         fornecer_teclado=lambda: modelo_de(controlador.layout),
         fornecer_sugestoes=lambda: list(editor.sugestoes),
+        fornecer_interruptores=lambda: estado_interruptores(),
         confianca=confianca,
         ao_emparelhar_novo=ponte_gw.emparelhado.emit,
     )
@@ -615,7 +679,7 @@ def main() -> int:
 
     def aviso_atualizacao(ha: bool) -> None:
         if ha and tray is not None:
-            tray.showMessage("Teclado", idiomas.t("atualizacoes.aviso_bandeja"))
+            tray.showMessage(NOME_APP, idiomas.t("atualizacoes.aviso_bandeja"))
 
     ponte_atualizacao.disponivel.connect(aviso_atualizacao, Qt.ConnectionType.QueuedConnection)
 
@@ -680,6 +744,12 @@ def main() -> int:
     try:
         return qt.exec()
     finally:
+        if tray is not None:
+            tray.hide()  # o icone some logo, sem esperar que o Windows o limpe
+        if ditado is not None:
+            ditado.desligar()
+        if sintese is not None:
+            sintese.fechar()
         gateway.desligar()
         if captura is not None:
             captura.desligar()

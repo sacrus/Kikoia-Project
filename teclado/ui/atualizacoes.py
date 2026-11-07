@@ -70,10 +70,15 @@ class DialogoAtualizacoes(QDialog):
         raiz.addWidget(QLabel(f"<b>{t('atualizacoes.teclado')}</b>"))
         raiz.addWidget(self._estado_teclado)
         raiz.addWidget(self._abrir)
-        raiz.addWidget(QLabel(f"<b>{t('atualizacoes.dependencias')}</b>"))
+        # No executavel nao ha dependencias a atualizar: so se mostra a versao do teclado.
+        self._dependencias = QLabel(f"<b>{t('atualizacoes.dependencias')}</b>")
+        raiz.addWidget(self._dependencias)
         raiz.addWidget(self._tabela, 1)
         raiz.addLayout(botoes)
         raiz.addWidget(self._estado)
+        if atualizacao.empacotado():
+            for widget in (self._dependencias, self._tabela, self._atualizar_deps):
+                widget.setVisible(False)
 
         self._mostrar_teclado_atual()
 

@@ -49,6 +49,10 @@ class ServidorInstancia(QObject):
     def ativo(self) -> bool:
         return self._servidor.isListening()
 
+    def fechar(self) -> None:
+        """Deixa de aceitar pedidos (antes de uma nova instancia arrancar)."""
+        self._servidor.close()
+
     def _nova_ligacao(self) -> None:
         ligacao = self._servidor.nextPendingConnection()
         if ligacao is None:

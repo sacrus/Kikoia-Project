@@ -31,7 +31,7 @@ _SINCRONIZAR = _EVENTO.pack(0, 0, EV_SYN, SYN_REPORT, 0)
 
 
 class TecladoVirtual:
-    def __init__(self, nome: str = "Teclado Remoto") -> None:
+    def __init__(self, nome: str = "Kikoia") -> None:
         try:
             self._fd = os.open(UINPUT, os.O_WRONLY | os.O_NONBLOCK)
         except OSError as erro:

@@ -1,9 +1,12 @@
 import sys
 
+import pytest
+
 from teclado.core.saida import criar_saida
 from teclado.core.saida.nula import SaidaNula
 
 
+@pytest.mark.skipif(sys.platform != "linux", reason="uinput so existe em Linux")
 def test_linux_sem_uinput_usa_saida_sem_injecao(monkeypatch):
     class SemPermissao:
         def __init__(self):

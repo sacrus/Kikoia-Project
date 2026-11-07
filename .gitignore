@@ -2,3 +2,12 @@
 __pycache__/
 .pytest_cache/
 *.pyc
+
+# Local e gerado
+magic.doc
+NOTAS-SESSAO-LINUX.md
+android/build/
+android/.gradle/
+android/.kotlin/
+android/app/build/
+android/local.properties

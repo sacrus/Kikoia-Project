@@ -39,7 +39,7 @@ IFACE_GESTOR_PERFIS = "org.bluez.ProfileManager1"
 IFACE_DISPOSITIVO = "org.bluez.Device1"
 IFACE_PROPRIEDADES = "org.freedesktop.DBus.Properties"
 IFACE_GESTOR_OBJETOS = "org.freedesktop.DBus.ObjectManager"
-NOME_PERFIL = "Teclado Remoto"
+NOME_PERFIL = "Kikoia"
 
 log = logging.getLogger(__name__)
 _CAMINHO_DISPOSITIVO = re.compile(r"/org/bluez/hci\d+/dev_((?:[0-9A-F]{2}_){5}[0-9A-F]{2})$")

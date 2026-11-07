@@ -83,7 +83,7 @@ def test_janela_principal_segue_o_idioma(monkeypatch):
     tema = descobrir_temas([DADOS_PROJETO / "temas"])["Claro"]
     janela = JanelaTeclado(Editor(Saida(), Dicionario({})), layout, tema, ancorar_fundo=False)
     try:
-        assert janela.windowTitle() == "Keyboard - Teste"
+        assert janela.windowTitle() == "Kikoia - Teste"
         assert janela._botao_falar.text() == "Speak"
         assert janela._botao_ditar.text() == "Dictate"
     finally:

@@ -2,8 +2,10 @@
 
 Funciona em Wayland e X11, em qualquer aplicacao (incluindo terminais).
 
-Limitacoes: a janela em foco e a area de transferencia nao sao geridas, porque
-dependem do ambiente grafico. O texto (incluindo o ditado) escreve-se carater a carater.
+Janela em foco e selecao usam X11 (python-xlib), por isso funcionam em X11 e em aplicacoes
+XWayland. Aplicacoes Wayland nativas nao sao visiveis. Caracteres sem tecla no layout
+(ex.: emojis) colam-se pela area de transferencia. O texto (incluindo o ditado) escreve-se
+carater a carater.
 """
 
 from __future__ import annotations
@@ -12,7 +14,8 @@ import logging
 import threading
 import time
 
-from . import ACOES_EDICAO
+from . import ACOES_EDICAO, x11
+from .estado_teclado import caps_lock_ativo
 from .layout import layout_do_sistema
 from .uinput import TecladoVirtual
 from .xkb import MapaTeclas
@@ -33,6 +36,17 @@ _TECLAS = {
 _MODIFICADORES = {"ctrl": "ctrl", "shift": "shift", "alt": "alt"}
 
 
+def inverter_shift(
+    passos: list[tuple[int, tuple[int, ...]]], shift: int | None,
+) -> list[tuple[int, tuple[int, ...]]]:
+    """Inverte o Shift do ultimo passo (a tecla que produz a letra). Com Caps Lock, minuscula e maiuscula trocam."""
+    if shift is None or not passos:
+        return passos
+    tecla, modificadores = passos[-1]
+    novos = tuple(m for m in modificadores if m != shift) if shift in modificadores else modificadores + (shift,)
+    return passos[:-1] + [(tecla, novos)]
+
+
 class SaidaLinux:
     def __init__(self) -> None:
         self._mapa = MapaTeclas(*layout_do_sistema())
@@ -40,6 +54,7 @@ class SaidaLinux:
         self._lock = threading.RLock()
         self._ultimo_apagar = 0.0
         self._avisados: set[str] = set()
+        self._dono_clipboard: x11.DonoClipboard | None = None
 
     # --- envio -----------------------------------------------------------------
 
@@ -66,9 +81,28 @@ class SaidaLinux:
             return
         passos = self._mapa.passos_para_caracter(carater)
         if passos is None:
-            self._avisar_uma_vez(f"Caracter sem tecla neste teclado: {carater!r}")
+            # Sem tecla no layout (ex.: emojis): cola-se pela area de transferencia.
+            self._colar_ausente(carater)
             return
+        if carater.isalpha() and caps_lock_ativo():
+            # Com Caps Lock aceso, o sistema inverte as letras: o Shift da letra tem de ser invertido.
+            passos = self._inverter_shift(passos)
         self._enviar_passos(passos)
+
+    def _inverter_shift(self, passos: list[tuple[int, tuple[int, ...]]]) -> list[tuple[int, tuple[int, ...]]]:
+        return inverter_shift(passos, self._mapa.tecla_modificador("shift"))
+
+    def _colar_ausente(self, texto: str) -> None:
+        if self._dono_clipboard is None:
+            try:
+                self._dono_clipboard = x11.DonoClipboard()
+            except Exception as erro:  # sem servidor X (ex.: Wayland puro)
+                self._avisar_uma_vez(f"Nao foi possivel colar caracteres sem tecla: {erro}")
+                return
+        self._dono_clipboard.definir(texto)
+        time.sleep(0.03)  # o clipboard tem de estar pronto antes do Ctrl+V
+        self._teclado.enviar(self._combinacao((self._codigo_modificador("ctrl"),), self._codigo_tecla("v")))
+        time.sleep(0.15)
 
     def _esperar_apos_apagar(self) -> None:
         decorrido = time.monotonic() - self._ultimo_apagar
@@ -159,9 +193,17 @@ class SaidaLinux:
             self._enviar_passo(passo)
 
     def janela_ativa(self, acao: str, excluir: int = 0) -> bool:
-        self._avisar_uma_vez("Fechar, minimizar e maximizar a janela em foco ainda nao esta disponivel no Linux.")
-        return False
+        if acao not in ("fechar_janela", "minimizar_janela", "maximizar_janela"):
+            raise ValueError(f"Acao de janela desconhecida: {acao}")
+        try:
+            return x11.janela_em_foco_e_acao(acao, excluir)
+        except Exception as erro:  # sem X11 ou sem gestor de janelas compativel
+            self._avisar_uma_vez(f"Acao sobre a janela em foco indisponivel: {erro}")
+            return False
 
     def ler_selecao(self) -> str:
-        self._avisar_uma_vez("Ler a selecao ainda nao esta disponivel no Linux.")
-        return ""
+        try:
+            return x11.ler_selecao_primaria()
+        except Exception as erro:
+            self._avisar_uma_vez(f"Ler a selecao indisponivel: {erro}")
+            return ""

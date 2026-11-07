@@ -47,6 +47,7 @@ class _SaidaSemDispositivo(saida_linux.SaidaLinux):
         self._lock = saida_linux.threading.RLock()
         self._ultimo_apagar = 0.0
         self._avisados = set()
+        self._dono_clipboard = None
         self.eventos: list[tuple[int, bool]] = []
 
         class _Captura:
@@ -96,7 +97,49 @@ def test_enter_e_tab_nao_passam_pelo_mapa(mapa):
     assert saida.eventos[:2] == [(28, True), (28, False)]
 
 
-def test_carater_sem_tecla_nao_gera_eventos(mapa):
+def test_carater_sem_tecla_cola_pela_area_de_transferencia(mapa, monkeypatch):
+    colados = []
+
+    class DonoFalso:
+        def definir(self, texto):
+            colados.append(texto)
+
+    monkeypatch.setattr(saida_linux.x11, "DonoClipboard", DonoFalso)
     saida = _SaidaSemDispositivo(mapa)
     saida._enviar_texto("😀")
-    assert saida.eventos == []
+    assert colados == ["😀"]
+    ctrl, v = mapa.tecla_modificador("ctrl"), mapa.tecla_base("v")
+    assert saida.eventos == [(ctrl, True), (v, True), (v, False), (ctrl, False)]
+
+
+def test_caps_lock_inverte_o_shift_das_letras(mapa, monkeypatch):
+    monkeypatch.setattr(saida_linux, "caps_lock_ativo", lambda: True)
+    saida = _SaidaSemDispositivo(mapa)
+    saida._enviar_texto("a")
+    shift = mapa.tecla_modificador("shift")
+    assert saida.eventos == [(shift, True), (30, True), (30, False), (shift, False)]
+
+
+def test_caps_lock_nao_muda_digitos_nem_sinais(mapa, monkeypatch):
+    monkeypatch.setattr(saida_linux, "caps_lock_ativo", lambda: True)
+    saida = _SaidaSemDispositivo(mapa)
+    saida._enviar_texto("1")
+    assert saida.eventos == [(mapa.tecla_base("1"), True), (mapa.tecla_base("1"), False)]
+
+
+def test_inverter_shift_adiciona_e_retira_o_shift():
+    assert saida_linux.inverter_shift([(30, ())], 42) == [(30, (42,))]
+    assert saida_linux.inverter_shift([(30, (42,))], 42) == [(30, ())]
+    assert saida_linux.inverter_shift([(30, ())], None) == [(30, ())]
+
+
+def test_caps_lock_le_o_led_do_teclado(tmp_path):
+    from teclado.core.saida.estado_teclado import caps_lock_ativo
+
+    assert caps_lock_ativo(tmp_path) is False
+    led = tmp_path / "input3::capslock"
+    led.mkdir()
+    (led / "brightness").write_text("0\n")
+    assert caps_lock_ativo(tmp_path) is False
+    (led / "brightness").write_text("1\n")
+    assert caps_lock_ativo(tmp_path) is True

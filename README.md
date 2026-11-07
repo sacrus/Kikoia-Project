@@ -1,4 +1,4 @@
-# Teclado Remoto
+# Kikoia
 
 Teclado virtual para Windows e Linux, pensado para acessibilidade: escrita por clique, sugestões de palavras, voz, teclados configuráveis e controlo remoto a partir de um telemóvel Android.
 

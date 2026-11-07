@@ -25,6 +25,7 @@ from typing import Any
 
 from spake2 import SPAKE2_B
 from websockets.asyncio.server import serve
+from websockets.exceptions import ConnectionClosed
 
 from teclado.core.idiomas import t
 from teclado.gateway.confianca import RepositorioConfianca, chave_reconhecimento, derivar, prova
@@ -74,9 +75,11 @@ class NucleoGateway:
         fornecer_sugestoes: Callable[[], list[str]] | None = None,
         confianca: RepositorioConfianca | None = None,
         ao_emparelhar_novo: Callable[[str], None] | None = None,
+        fornecer_interruptores: Callable[[], dict[str, Any]] | None = None,
     ) -> None:
         self.nome = nome
         self._ao_acao = ao_acao
+        self._fornecer_interruptores = fornecer_interruptores
         self._ao_emparelhar = ao_emparelhar or (lambda endereco: None)
         self._ao_emparelhar_novo = ao_emparelhar_novo or (lambda endereco: None)
         self._confianca = confianca
@@ -123,6 +126,10 @@ class NucleoGateway:
         limpas = [p for p in palavras if 1 <= len(p) <= MAX_PALAVRA][:MAX_SUGESTOES]
         self._difundir(lambda sessao: sessao.enviar("sugestoes", "s", {"palavras": limpas}))
 
+    def atualizar_interruptores(self, estado: dict[str, Any]) -> None:
+        """Envia o estado dos interruptores Falar e Ditar a todos os telemoveis ligados."""
+        self._difundir(lambda sessao: sessao.enviar("interruptores", "i", estado))
+
     def _difundir(self, fabrica: Callable[[Sessao], bytes | None]) -> None:
         loop = self._loop
         if loop is None or not self._sessoes:
@@ -134,13 +141,17 @@ class NucleoGateway:
 
     async def _enviar_a_todos(self, fabrica: Callable[[Sessao], bytes | None]) -> None:
         for canal, sessao in list(self._sessoes.values()):
-            dados = fabrica(sessao)
-            if dados is None:
-                continue
+            # Cada telemovel e tratado a parte: um erro num nao pode impedir os outros de receber.
             try:
+                dados = fabrica(sessao)
+                if dados is None:
+                    continue
                 await canal.send(dados)
-            except (ConnectionError, OSError):
+            except (ConnectionError, OSError, ConnectionClosed):
                 log.info("Telemovel desligado durante a difusao")
+            except Exception:
+                # Sem isto, o erro ficava guardado na tarefa e ninguem o via.
+                log.error("Falha ao enviar mensagem a um telemovel", exc_info=True)
 
     def _mensagem_teclado(self, sessao: Sessao, modelo: dict[str, Any]) -> bytes | None:
         try:
@@ -244,12 +255,14 @@ class NucleoGateway:
             palavras = self._fornecer_sugestoes()
             limpas = [p for p in palavras if 1 <= len(p) <= MAX_PALAVRA][:MAX_SUGESTOES]
             await canal.send(sessao.enviar("sugestoes", "s", {"palavras": limpas}))
+        if self._fornecer_interruptores is not None:
+            await canal.send(sessao.enviar("interruptores", "i", self._fornecer_interruptores()))
 
     async def _processar(self, canal, sessao: Sessao, msg: dict[str, Any]) -> None:
         tipo = msg["tipo"]
         if tipo == "ping":
             await canal.send(sessao.enviar("pong", msg["id"]))
-        elif tipo in ("acao", "escolher_sugestao"):
+        elif tipo in ("acao", "escolher_sugestao", "interruptor"):
             self._ao_acao(msg)
         # Outros tipos sao do PC para o telemovel: ignorados aqui.
 

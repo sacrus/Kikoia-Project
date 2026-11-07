@@ -22,6 +22,8 @@ ACOES_EDICAO: dict[str, tuple[str, ...]] = {
     "apagar_linha": ("home", "shift+end", "backspace"),
     "selecionar_palavra": ("ctrl+left", "ctrl+shift+right"),
     "selecionar_linha": ("home", "shift+end"),
+    # Mesmo efeito que Alt+Tab: passa para a janela anterior (ou mantem a atual se so houver uma).
+    "navegar_janelas": ("alt+tab",),
 }
 # Acoes sobre a janela da aplicacao em foco. Nao sao atalhos: tratadas pelo controlador do ecra.
 ACOES_JANELA = frozenset({"minimizar_teclado", "fechar_janela", "minimizar_janela", "maximizar_janela"})
@@ -29,7 +31,7 @@ ACOES_JANELA = frozenset({"minimizar_teclado", "fechar_janela", "minimizar_janel
 ACOES = frozenset(ACOES_EDICAO) | {"ler_selecao"} | ACOES_JANELA
 
 # Nomes usados nos atalhos (alem de TECLAS_ESPECIAIS e das letras e digitos).
-MAPA_TECLAS_ATALHO = frozenset({"ctrl", "shift", "home", "end", "left", "right", "c"})
+MAPA_TECLAS_ATALHO = frozenset({"ctrl", "shift", "alt", "tab", "home", "end", "left", "right", "c"})
 
 
 class Saida(Protocol):

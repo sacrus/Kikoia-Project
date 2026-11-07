@@ -46,6 +46,7 @@ from teclado.core.layout_editor import (
     remover_tecla,
     tecla_dict,
 )
+from teclado.core.rotulos import rotulo_tecla
 from teclado.core.saida import ACOES, TECLAS_ESPECIAIS
 from teclado.ui.comandos_ui import DialogoComando
 from teclado.ui.dialogos import executar_dialogo
@@ -76,6 +77,7 @@ def rotulos_acoes() -> dict[str, tuple[str, float]]:
         "fechar_janela": (t("editor.acao_fechar_janela"), 1.5),
         "minimizar_janela": (t("editor.acao_minimizar_janela"), 1.5),
         "maximizar_janela": (t("editor.acao_maximizar_janela"), 1.5),
+        "navegar_janelas": (t("editor.acao_navegar_janelas"), 1.5),
     }
 
 
@@ -119,7 +121,7 @@ def simbolos_disponiveis(atalhos: list[tuple[str, str]] = (), comandos=()) -> li
     itens += [tecla_dict(rotulo, "acao", acao, largura) for acao, (rotulo, largura) in rotulos_acoes().items()]
     # Modificador Ctrl (de um toque) e teclas de funcao/navegacao.
     itens += [tecla_dict("Ctrl", "modificador", "ctrl", 1.5)]
-    itens += [tecla_dict(rotulo, "tecla", valor) for rotulo, valor in TECLAS_FUNCAO]
+    itens += [tecla_dict(rotulo_tecla("tecla", valor, rotulo), "tecla", valor) for rotulo, valor in TECLAS_FUNCAO]
     itens += [tecla_dict(letra, "texto", letra) for letra in "abcdefghijklmnopqrstuvwxyzç"]
     itens += [tecla_dict(letra, "texto", letra) for letra in "àáâãéêíóôõú"]
     itens += [tecla_dict(letra, "texto", letra) for letra in "ÀÁÂÃÉÊÍÓÔÕÚÇ"]
