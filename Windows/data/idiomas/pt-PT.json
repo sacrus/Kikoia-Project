@@ -288,5 +288,21 @@
   "tecla.capslock": "Caps Lock",
   "tecla.tab": "Tab",
   "tecla.esc": "Esc",
-  "tecla.delete": "Delete"
+  "tecla.delete": "Delete",
+  "editor.teclas_personalizadas": "Teclas personalizadas",
+  "editor.teclas_personalizadas_dica": "Criar, alterar ou apagar programas e comandos. Com uma tecla de comando selecionada, abre essa tecla.",
+  "editor.comando_alterado": "Tecla «{rotulo}» alterada.",
+  "editor.comando_apagado": "Tecla «{rotulo}» apagada.",
+  "cmd.remover_teclas": "Esta tecla de comando está em: {lista}. Também remover essas teclas dos teclados?",
+  "editor.simbolo_shift": "Símbolo com Shift",
+  "editor.simbolo_shift_dica": "opcional",
+  "voz.piper_secao": "Voz de Falar (Linux)",
+  "voz.piper_instalada": "Voz portuguesa instalada.",
+  "voz.piper_nao_instalada": "Voz não instalada. Falar fica indisponível até a descarregar.",
+  "voz.piper_sem_idioma": "Não há voz de Falar para este idioma.",
+  "voz.piper_descarregar": "Descarregar a voz ({mb} MB)",
+  "voz.piper_confirmar": "Descarregar a voz portuguesa (cerca de {mb} MB)?",
+  "voz.piper_ativar": "Voz instalada e selecionada. Carregue em OK para a usar.",
+  "gateway.bluetooth_recomendado": "Bluetooth (Recomendado)",
+  "gateway.aviso_wifi": "Poderá necessitar de configurações adicionais, como configurar reencaminhamento de portas no router."
 }

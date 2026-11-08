@@ -288,5 +288,21 @@
   "tecla.capslock": "Verr Maj",
   "tecla.tab": "Tab",
   "tecla.esc": "Échap",
-  "tecla.delete": "Suppr"
+  "tecla.delete": "Suppr",
+  "editor.teclas_personalizadas": "Touches personnalisées",
+  "editor.teclas_personalizadas_dica": "Créer, modifier ou supprimer des programmes et commandes. Si une touche de commande est sélectionnée, ouvre cette touche.",
+  "editor.comando_alterado": "Touche « {rotulo} » modifiée.",
+  "editor.comando_apagado": "Touche « {rotulo} » supprimée.",
+  "cmd.remover_teclas": "Cette touche de commande est dans : {lista}. Retirer aussi ces touches des claviers ?",
+  "editor.simbolo_shift": "Symbole avec Shift",
+  "editor.simbolo_shift_dica": "facultatif",
+  "voz.piper_secao": "Voix de Parler (Linux)",
+  "voz.piper_instalada": "Voix portugaise installée.",
+  "voz.piper_nao_instalada": "Voix non installée. Parler reste indisponible tant qu'elle n'est pas téléchargée.",
+  "voz.piper_sem_idioma": "Il n'y a pas de voix de lecture pour cette langue.",
+  "voz.piper_descarregar": "Télécharger la voix ({mb} Mo)",
+  "voz.piper_confirmar": "Télécharger la voix portugaise (environ {mb} Mo) ?",
+  "voz.piper_ativar": "Voix installée et sélectionnée. Appuyez sur OK pour l'utiliser.",
+  "gateway.bluetooth_recomendado": "Bluetooth (Recommandé)",
+  "gateway.aviso_wifi": "Des réglages supplémentaires peuvent être nécessaires, comme la configuration de la redirection de ports sur votre routeur."
 }

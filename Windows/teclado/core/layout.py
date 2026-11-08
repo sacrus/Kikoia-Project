@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from teclado.core.acentos import ACENTOS
@@ -38,6 +38,7 @@ MULTITOQUE_MAX = 12
 MAX_TECLAS = 80
 MAX_TEXTO = 20
 MAX_ROTULO = 30  # o que aparece na tecla pode ser mais longo do que o valor da acao
+MAX_SHIFT = 4  # simbolo escrito com Shift numa tecla de texto
 
 log = logging.getLogger(__name__)
 
@@ -57,6 +58,10 @@ class Tecla:
     rotulo: str
     acao: Acao
     largura: float = 1.0
+    # Simbolo escrito com Shift (None = usa a tabela do idioma, ver core/simbolos.py).
+    shift: str | None = None
+    # Idiomas em que a tecla aparece (None = em todos). Ex.: o ñ so existe com o espanhol selecionado.
+    idiomas: frozenset[str] | None = None
 
 
 @dataclass(frozen=True)
@@ -70,6 +75,17 @@ class Layout:
     @property
     def total_teclas(self) -> int:
         return sum(len(linha) for linha in self.linhas)
+
+    def para_idioma(self, idioma: str) -> "Layout":
+        """O mesmo layout so com as teclas que aparecem nesse idioma (as de idiomas=None aparecem sempre)."""
+        linhas = tuple(
+            tecla_do_idioma
+            for tecla_do_idioma in (
+                tuple(t for t in linha if t.idiomas is None or idioma in t.idiomas) for linha in self.linhas
+            )
+            if tecla_do_idioma
+        )
+        return replace(self, linhas=linhas)
 
 
 def _texto(dados: dict, campo: str, maximo: int, contexto: str) -> str:
@@ -111,7 +127,18 @@ def _tecla(dados: object, contexto: str) -> Tecla:
     if isinstance(largura, bool) or not isinstance(largura, (int, float)) or not 0.5 <= largura <= 6:
         raise LayoutInvalido(f"{contexto}: 'largura' deve estar entre 0.5 e 6.")
 
-    return Tecla(rotulo=rotulo, acao=Acao(tipo, valor), largura=float(largura))
+    shift = dados.get("shift")
+    if shift is not None:
+        if tipo != "texto" or not isinstance(shift, str) or not 1 <= len(shift) <= MAX_SHIFT:
+            raise LayoutInvalido(f"{contexto}: 'shift' so se aplica a teclas de texto, com 1 a {MAX_SHIFT} caracteres.")
+
+    idiomas = dados.get("idiomas")
+    if idiomas is not None:
+        if not isinstance(idiomas, list) or not idiomas or not all(isinstance(i, str) and i for i in idiomas):
+            raise LayoutInvalido(f"{contexto}: 'idiomas' deve ser uma lista de codigos de idioma.")
+        idiomas = frozenset(idiomas)
+
+    return Tecla(rotulo=rotulo, acao=Acao(tipo, valor), largura=float(largura), shift=shift, idiomas=idiomas)
 
 
 def validar_tecla(dados: object, contexto: str = "Tecla") -> Tecla:

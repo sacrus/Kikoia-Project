@@ -10,7 +10,7 @@ import java.net.URL
  */
 object Atualizacao {
     const val REPOSITORIO = "sacrus/Kikoia-Project"
-    const val VERSAO = "0.1.0"
+    const val VERSAO = "0.1.1"
     private const val TIMEOUT_MS = 8000
 
     data class Nova(val versao: String, val pagina: String)

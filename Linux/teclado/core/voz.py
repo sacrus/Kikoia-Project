@@ -1,6 +1,7 @@
 """Voz: sintese (texto para fala) e reconhecimento (fala para texto), ambos opcionais.
 
-- Sintese: SAPI5 do Windows, chamado diretamente (comtypes). Corre numa thread
+- Sintese: SAPI5 do Windows, chamado diretamente (comtypes); no Linux, Piper
+  (voz descarregada a pedido, ver core/voz_piper.py). Corre numa thread
   propria, com fila, para nunca bloquear as teclas.
   Nota: o pyttsx3 deixava de falar depois da primeira frase no SAPI5; por isso
   nao e usado.
@@ -20,9 +21,10 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
-from teclado.core import modelos
+from teclado.core import modelos, voz_piper
 from teclado.core.idiomas import t
 from teclado.core.nivel import AnaliseNivel
+from teclado.core.voz_piper import MotorPiper
 
 log = logging.getLogger(__name__)
 
@@ -140,8 +142,13 @@ class SinteseFalada:
                 log.error("Falha ao falar: %r", texto, exc_info=True)
 
 
-def vozes_disponiveis() -> list[tuple[str, str]]:
-    """Lista (id, nome) das vozes SAPI instaladas. Vazia se nao houver motor."""
+def vozes_disponiveis(pasta_dados: Path | None = None, idioma: str = "pt-PT") -> list[tuple[str, str]]:
+    """Lista (id, nome) das vozes instaladas: SAPI no Windows, Piper no Linux (uma voz por lingua)."""
+    if sys.platform.startswith("linux"):
+        voz = voz_piper.voz_do_idioma(idioma)
+        if pasta_dados is not None and voz is not None and voz_piper.instalada(pasta_dados, idioma):
+            return [(voz.id, voz.nome)]
+        return []
     if sys.platform != "win32":
         return []
     try:
@@ -166,8 +173,22 @@ def escolher_voz_portuguesa(vozes: list[tuple[str, str]]) -> str | None:
     return None
 
 
-def criar_sintese(voz_id: str | None = None) -> Sintese:
+def criar_sintese(voz_id: str | None = None, pasta_dados: Path | None = None, idioma: str = "pt-PT") -> Sintese:
     """Cria o motor de fala do sistema. Lanca VozIndisponivel se nao existir."""
+    if sys.platform.startswith("linux"):
+        voz = voz_piper.voz_do_idioma(idioma)
+        if pasta_dados is None or voz is None or not voz_piper.instalada(pasta_dados, idioma):
+            raise VozIndisponivel("Voz de Falar não instalada. Descarregue-a em Opções de voz.")
+        pasta = voz_piper.pasta_voz(pasta_dados, idioma)
+        sintese = SinteseFalada(
+            lambda: MotorPiper(pasta / voz.modelo, pasta / voz.config),
+            voz_id=None,
+        )
+        # O primeiro carregamento do modelo demora alguns segundos.
+        if not sintese.aguardar_pronto(limite=20.0):
+            motivo = f" ({sintese.erro})" if sintese.erro else ""
+            raise VozIndisponivel(f"Não foi possível iniciar a voz de Falar{motivo}.")
+        return sintese
     if sys.platform != "win32":
         raise VozIndisponivel("Síntese de voz ainda não disponível neste sistema.")
     sintese = SinteseFalada(MotorSapi, voz_id=voz_id)

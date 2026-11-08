@@ -28,6 +28,16 @@ CHAVES_TECLAS: dict[tuple[str, str], str] = {
     ("tecla", "tab"): "tecla.tab",
     ("tecla", "esc"): "tecla.esc",
     ("tecla", "delete"): "tecla.delete",
+    ("acao", "apagar_palavra"): "editor.acao_apagar_palavra",
+    ("acao", "apagar_linha"): "editor.acao_apagar_linha",
+    ("acao", "selecionar_palavra"): "editor.acao_selecionar_palavra",
+    ("acao", "selecionar_linha"): "editor.acao_selecionar_linha",
+    ("acao", "ler_selecao"): "editor.acao_ler_selecao",
+    ("acao", "minimizar_teclado"): "editor.acao_minimizar_teclado",
+    ("acao", "fechar_janela"): "editor.acao_fechar_janela",
+    ("acao", "minimizar_janela"): "editor.acao_minimizar_janela",
+    ("acao", "maximizar_janela"): "editor.acao_maximizar_janela",
+    ("acao", "navegar_janelas"): "editor.acao_navegar_janelas",
 }
 
 

@@ -35,9 +35,17 @@ def texto_ajuda() -> str:
 
 
 class DialogoComando(QDialog):
-    def __init__(self, parent: QWidget | None, inicial: Comando | None = None) -> None:
+    def __init__(
+        self,
+        parent: QWidget | None,
+        inicial: Comando | None = None,
+        ao_apagar: Callable[[], bool] | None = None,
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle(t("cmd.titulo_tecla"))
+        self.apagado = False
+        self._inicial = inicial
+        self._ao_apagar = ao_apagar
         self._rotulo = QLineEdit(inicial.rotulo if inicial else "")
         self._rotulo.setMaxLength(MAX_ROTULO)
         self._rotulo.setPlaceholderText(t("cmd.exemplo"))
@@ -56,12 +64,24 @@ class DialogoComando(QDialog):
         caixa = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         caixa.accepted.connect(self._confirmar)
         caixa.rejected.connect(self.reject)
+        if ao_apagar is not None:
+            botao_apagar = caixa.addButton(t("geral.apagar"), QDialogButtonBox.ButtonRole.DestructiveRole)
+            botao_apagar.clicked.connect(self._apagar)
 
         raiz = QVBoxLayout(self)
         raiz.addLayout(formulario)
         raiz.addWidget(procurar)
         raiz.addWidget(ajuda)
         raiz.addWidget(caixa)
+
+    def _apagar(self) -> None:
+        nome = self._inicial.rotulo if self._inicial else ""
+        if QMessageBox.question(self, t("geral.apagar"), t("cmd.apagar_pergunta", rotulo=nome)) \
+                != QMessageBox.StandardButton.Yes:
+            return
+        if self._ao_apagar is not None and self._ao_apagar():
+            self.apagado = True
+            self.accept()
 
     def _procurar(self) -> None:
         ficheiro, _ = QFileDialog.getOpenFileName(

@@ -33,7 +33,7 @@
     <string name="and_procurar">Rechercher des ordinateurs</string>
     <string name="and_nenhum_wifi_1">Aucun ordinateur trouvé. Vérifiez que Kikoia est ouvert sur l\'ordinateur, </string>
     <string name="and_nenhum_wifi_2">que les deux sont sur le même réseau Wi-Fi et que Windows autorise la connexion (pare-feu).</string>
-    <string name="and_bt_rotulo">Bluetooth (appairé)</string>
+    <string name="and_bt_rotulo">Bluetooth (Recommandé)</string>
     <string name="and_atualizar_lista">Actualiser la liste</string>
     <string name="and_nenhum_bt_1">Aucun ordinateur appairé. Appairez le téléphone avec l\'ordinateur dans les paramètres </string>
     <string name="and_nenhum_bt_2">Bluetooth d\'Android puis appuyez sur «Actualiser la liste».</string>
@@ -42,6 +42,10 @@
     <string name="and_codigo_rotulo">Code à 6 chiffres</string>
     <string name="and_emparelhar">Appairer</string>
     <string name="and_voltar">Retour</string>
+    <string name="and_cancelar">Annuler</string>
+    <string name="and_reconectando">Reconnexion…</string>
+    <string name="and_sem_sinal">L\'ordinateur ne répond plus.</string>
+    <string name="and_wifi_aviso">Des réglages supplémentaires peuvent être nécessaires, comme la configuration de la redirection de ports sur votre routeur.</string>
     <string name="and_desligar">Déconnecter</string>
     <string name="and_aguardar">En attente du clavier de l\'ordinateur…</string>
     <string name="and_emparelhar_com">Appairer avec %1$s</string>

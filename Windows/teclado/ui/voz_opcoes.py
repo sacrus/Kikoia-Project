@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 import threading
 from pathlib import Path
 
@@ -18,7 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from teclado.core import modelos
+from teclado.core import modelos, voz_piper
 from teclado.core.idiomas import t
 
 
@@ -103,6 +104,25 @@ class DialogoOpcoesVoz(QDialog):
             raiz.addWidget(self._botao_remover)
             self._atualizar_modelo()
 
+        if pasta_dados is not None and sys.platform.startswith("linux"):
+            # No Linux, a voz de Falar (Piper) tambem e descarregada a pedido.
+            raiz.addWidget(QLabel(f"<b>{t('voz.piper_secao')}</b>"))
+            self._estado_piper = QLabel()
+            self._estado_piper.setWordWrap(True)
+            self._botao_piper = QPushButton()
+            self._botao_piper.clicked.connect(self._piper_descarregar_ou_cancelar)
+            self._botao_piper_remover = QPushButton(t("voz.remover"))
+            self._botao_piper_remover.clicked.connect(self._piper_remover)
+            raiz.addWidget(self._estado_piper)
+            raiz.addWidget(self._botao_piper)
+            raiz.addWidget(self._botao_piper_remover)
+            self._a_descarregar_piper = False
+            self._cancelar_piper = False
+            self._sinal_piper = _Sinal()
+            self._sinal_piper.progresso.connect(self._piper_progresso, Qt.ConnectionType.QueuedConnection)
+            self._sinal_piper.concluido.connect(self._piper_concluido, Qt.ConnectionType.QueuedConnection)
+            self._atualizar_piper()
+
         raiz.addWidget(caixa)
 
     def escolhas(self) -> dict:
@@ -182,7 +202,86 @@ class DialogoOpcoesVoz(QDialog):
         modelos.remover(self._pasta_dados, self._idioma)
         self._atualizar_modelo()
 
+    # --- voz de Falar (Piper, Linux) -----------------------------------------------
+
+    def _voz_piper(self):
+        """Voz de Falar da lingua deste dialogo (None se a lingua nao tiver voz)."""
+        return voz_piper.voz_do_idioma(self._idioma)
+
+    def _atualizar_piper(self) -> None:
+        voz = self._voz_piper()
+        if voz is None:
+            self._estado_piper.setText(t("voz.piper_sem_idioma"))
+            self._botao_piper.setEnabled(False)
+            self._botao_piper_remover.setEnabled(False)
+            return
+        instalada = voz_piper.instalada(self._pasta_dados, self._idioma)
+        self._estado_piper.setText(t("voz.piper_instalada") if instalada else t("voz.piper_nao_instalada"))
+        self._botao_piper.setText(t("voz.piper_descarregar", mb=voz.tamanho_mb))
+        self._botao_piper.setEnabled(not instalada and not self._a_descarregar_piper)
+        self._botao_piper_remover.setEnabled(instalada and not self._a_descarregar_piper)
+
+    def _piper_descarregar_ou_cancelar(self) -> None:
+        if self._a_descarregar_piper:
+            self._cancelar_piper = True
+            return
+        resposta = QMessageBox.question(
+            self, t("voz.titulo"), t("voz.piper_confirmar", mb=self._voz_piper().tamanho_mb),
+        )
+        if resposta != QMessageBox.StandardButton.Yes:
+            return
+        self._a_descarregar_piper = True
+        self._cancelar_piper = False
+        self._botao_piper.setText(t("voz.cancelar"))
+        self._botao_piper_remover.setEnabled(False)
+        self._estado_piper.setText(t("voz.a_descarregar", percentagem=0))
+        threading.Thread(target=self._piper_trabalhar, daemon=True, name="voz-piper").start()
+
+    def _piper_trabalhar(self) -> None:
+        def progresso(recebido: int, total: int) -> None:
+            self._sinal_piper.progresso.emit(recebido, total)
+
+        try:
+            voz_piper.descarregar(
+                self._pasta_dados, self._idioma, progresso=progresso, cancelar=lambda: self._cancelar_piper,
+            )
+            self._sinal_piper.concluido.emit(None)
+        except modelos.DescargaCancelada:
+            self._sinal_piper.concluido.emit(CANCELADA)
+        except modelos.ModeloErro as erro:
+            self._sinal_piper.concluido.emit(str(erro))
+
+    def _piper_progresso(self, recebido: int, total: int) -> None:
+        percentagem = int(recebido * 100 / total) if total else 0
+        self._estado_piper.setText(t("voz.a_descarregar", percentagem=percentagem))
+
+    def _piper_concluido(self, resultado: object) -> None:
+        self._a_descarregar_piper = False
+        self._cancelar_piper = False
+        if resultado is None:
+            # A voz passa a estar na lista, selecionada. Ativa-se com OK.
+            voz = self._voz_piper()
+            if voz.id not in self._ids:
+                self._voz.addItem(voz.nome)
+                self._ids.append(voz.id)
+            self._voz.setCurrentIndex(self._ids.index(voz.id))
+            self._estado_piper.setText(t("voz.piper_ativar"))
+        elif resultado != CANCELADA:
+            QMessageBox.warning(self, t("voz.titulo"), t("voz.descarga_falhou", erro=resultado))
+        self._atualizar_piper()
+
+    def _piper_remover(self) -> None:
+        voz = self._voz_piper()
+        voz_piper.remover(self._pasta_dados, self._idioma)
+        if voz is not None and voz.id in self._ids:
+            indice = self._ids.index(voz.id)
+            self._voz.removeItem(indice)
+            self._ids.pop(indice)
+        self._atualizar_piper()
+
     def reject(self) -> None:  # fechar a meio de uma descarga cancela-a
         if self._a_descarregar:
             self._cancelar = True
+        if getattr(self, "_a_descarregar_piper", False):
+            self._cancelar_piper = True
         super().reject()

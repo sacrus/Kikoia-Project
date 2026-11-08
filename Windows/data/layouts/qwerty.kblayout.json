@@ -3,6 +3,23 @@
   "idioma": "pt-PT",
   "linhas": [
     [
+      {"rotulo": "º", "acao": {"tipo": "texto", "valor": "º"}, "shift": "ª"},
+      {"rotulo": "1", "acao": {"tipo": "texto", "valor": "1"}},
+      {"rotulo": "2", "acao": {"tipo": "texto", "valor": "2"}},
+      {"rotulo": "3", "acao": {"tipo": "texto", "valor": "3"}},
+      {"rotulo": "4", "acao": {"tipo": "texto", "valor": "4"}},
+      {"rotulo": "5", "acao": {"tipo": "texto", "valor": "5"}},
+      {"rotulo": "6", "acao": {"tipo": "texto", "valor": "6"}},
+      {"rotulo": "7", "acao": {"tipo": "texto", "valor": "7"}},
+      {"rotulo": "8", "acao": {"tipo": "texto", "valor": "8"}},
+      {"rotulo": "9", "acao": {"tipo": "texto", "valor": "9"}},
+      {"rotulo": "0", "acao": {"tipo": "texto", "valor": "0"}},
+      {"rotulo": "'", "acao": {"tipo": "texto", "valor": "'"}},
+      {"rotulo": "«", "acao": {"tipo": "texto", "valor": "«"}, "shift": "»"},
+      {"rotulo": "Apagar", "acao": {"tipo": "tecla", "valor": "backspace"}, "largura": 2}
+    ],
+    [
+      {"rotulo": "Tab", "acao": {"tipo": "tecla", "valor": "tab"}, "largura": 1.5},
       {"rotulo": "q", "acao": {"tipo": "texto", "valor": "q"}},
       {"rotulo": "w", "acao": {"tipo": "texto", "valor": "w"}},
       {"rotulo": "e", "acao": {"tipo": "texto", "valor": "e"}},
@@ -12,7 +29,11 @@
       {"rotulo": "u", "acao": {"tipo": "texto", "valor": "u"}},
       {"rotulo": "i", "acao": {"tipo": "texto", "valor": "i"}},
       {"rotulo": "o", "acao": {"tipo": "texto", "valor": "o"}},
-      {"rotulo": "p", "acao": {"tipo": "texto", "valor": "p"}}
+      {"rotulo": "p", "acao": {"tipo": "texto", "valor": "p"}},
+      {"rotulo": "+", "acao": {"tipo": "texto", "valor": "+"}},
+      {"rotulo": "§", "acao": {"tipo": "texto", "valor": "§"}},
+      {"rotulo": "´", "acao": {"tipo": "acento", "valor": "agudo"}},
+      {"rotulo": "¨", "acao": {"tipo": "acento", "valor": "trema"}, "idiomas": ["es", "fr"]}
     ],
     [
       {"rotulo": "a", "acao": {"tipo": "texto", "valor": "a"}},
@@ -24,7 +45,12 @@
       {"rotulo": "j", "acao": {"tipo": "texto", "valor": "j"}},
       {"rotulo": "k", "acao": {"tipo": "texto", "valor": "k"}},
       {"rotulo": "l", "acao": {"tipo": "texto", "valor": "l"}},
-      {"rotulo": "ç", "acao": {"tipo": "texto", "valor": "ç"}}
+      {"rotulo": "ç", "acao": {"tipo": "texto", "valor": "ç"}},
+      {"rotulo": "ñ", "acao": {"tipo": "texto", "valor": "ñ"}, "idiomas": ["es"]},
+      {"rotulo": "~", "acao": {"tipo": "acento", "valor": "til"}},
+      {"rotulo": "`", "acao": {"tipo": "acento", "valor": "grave"}},
+      {"rotulo": "^", "acao": {"tipo": "acento", "valor": "circunflexo"}},
+      {"rotulo": "Enter", "acao": {"tipo": "tecla", "valor": "enter"}, "largura": 2}
     ],
     [
       {"rotulo": "Shift", "acao": {"tipo": "modificador", "valor": "shift"}, "largura": 1.5},
@@ -37,13 +63,21 @@
       {"rotulo": "m", "acao": {"tipo": "texto", "valor": "m"}},
       {"rotulo": ",", "acao": {"tipo": "texto", "valor": ","}},
       {"rotulo": ".", "acao": {"tipo": "texto", "valor": "."}},
-      {"rotulo": "Apagar", "acao": {"tipo": "tecla", "valor": "backspace"}, "largura": 1.5}
+      {"rotulo": "-", "acao": {"tipo": "texto", "valor": "-"}},
+      {"rotulo": "¿", "acao": {"tipo": "texto", "valor": "¿"}, "idiomas": ["es"]},
+      {"rotulo": "¡", "acao": {"tipo": "texto", "valor": "¡"}, "idiomas": ["es"]},
+      {"rotulo": "Shift", "acao": {"tipo": "modificador", "valor": "shift"}, "largura": 2.5}
     ],
     [
-      {"rotulo": "?", "acao": {"tipo": "texto", "valor": "?"}},
-      {"rotulo": "!", "acao": {"tipo": "texto", "valor": "!"}},
-      {"rotulo": "Espaço", "acao": {"tipo": "tecla", "valor": "espaco"}, "largura": 4},
-      {"rotulo": "Enter", "acao": {"tipo": "tecla", "valor": "enter"}, "largura": 2}
+      {"rotulo": "Ctrl", "acao": {"tipo": "modificador", "valor": "ctrl"}, "largura": 1.5},
+      {"rotulo": "⚡", "acao": {"tipo": "navegar", "valor": "Ações"}, "largura": 1.5},
+      {"rotulo": "Números", "acao": {"tipo": "navegar", "valor": "Numérico"}, "largura": 2},
+      {"rotulo": "Espaço", "acao": {"tipo": "tecla", "valor": "espaco"}, "largura": 3.5},
+      {"rotulo": "€", "acao": {"tipo": "texto", "valor": "€"}},
+      {"rotulo": "←", "acao": {"tipo": "tecla", "valor": "seta_esq"}},
+      {"rotulo": "↓", "acao": {"tipo": "tecla", "valor": "seta_baixo"}},
+      {"rotulo": "↑", "acao": {"tipo": "tecla", "valor": "seta_cima"}},
+      {"rotulo": "→", "acao": {"tipo": "tecla", "valor": "seta_dir"}}
     ]
   ]
 }

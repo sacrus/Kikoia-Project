@@ -34,6 +34,12 @@ class BotaoTecla(QPushButton):
         self._base = tamanho_base
         self._tamanho_atual = tamanho_base
 
+    def definir_texto(self, texto: str) -> None:
+        """Muda o texto da tecla (ex.: simbolo com Shift) e volta a ajustar o tamanho."""
+        if texto != self._texto:
+            self._texto = texto
+            self.ajustar()
+
     def definir_tamanho_base(self, tamanho: int) -> None:
         self._base = tamanho
         self.ajustar()

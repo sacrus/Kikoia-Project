@@ -28,7 +28,6 @@ ACAO_VOZ = "voz"
 ACAO_IA = "ia"
 ACAO_FISICO = "fisico"
 ACAO_GATEWAY = "gateway"
-ACAO_COMANDOS = "comandos"
 ACAO_ATUALIZACOES = "atualizacoes"
 
 
@@ -128,9 +127,6 @@ class DialogoDefinicoes(QDialog):
         botao_gateway = QPushButton(t("definicoes.telemovel_botao"))
         botao_gateway.clicked.connect(lambda _=False: self._acionar(ACAO_GATEWAY))
         raiz.addWidget(botao_gateway)
-        botao_comandos = QPushButton(t("definicoes.comandos"))
-        botao_comandos.clicked.connect(lambda _=False: self._acionar(ACAO_COMANDOS))
-        raiz.addWidget(botao_comandos)
         botao_atualizacoes = QPushButton(t("definicoes.atualizacoes"))
         botao_atualizacoes.clicked.connect(lambda _=False: self._acionar(ACAO_ATUALIZACOES))
         raiz.addWidget(botao_atualizacoes)

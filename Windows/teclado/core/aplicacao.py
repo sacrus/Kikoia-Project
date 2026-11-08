@@ -12,8 +12,16 @@ from pathlib import Path
 from ..gateway.servidor import PORTA_POR_OMISSAO
 from . import arranque, idiomas
 from .comandos import Comando, ComandoErro, carregar, executar, gravar, novo_id, validar
-from .layout import Layout, descobrir_layouts
-from .layout_editor import apagar_layout_em_pasta, guardar_layout_em_pasta, validar_modelo
+from .layout import EXTENSAO, Layout, LayoutInvalido, carregar_layout, descobrir_layouts
+from .layout_editor import (
+    apagar_layout_em_pasta,
+    gravar_modelo_em_ficheiro,
+    guardar_layout_em_pasta,
+    modelo_de,
+    remover_teclas_de_comando,
+    usa_comando,
+    validar_modelo,
+)
 from .perfil import AMBITO_POR_OMISSAO, AMBITOS_VALIDOS, Perfil, RepositorioPerfis, Supervisao
 from .politica import PedidoAprovacaoNecessario, aprovar, executar_acao
 from .seguranca import gerar_hash_pin
@@ -305,7 +313,8 @@ class Aplicacao:
 
         return novo if self._com_aprovacao("definicoes", aplicar) else None
 
-    def apagar_comando(self, id_: str) -> bool:
+    def apagar_comando(self, id_: str, remover_teclas: bool = False) -> bool:
+        """Apaga o comando. Com remover_teclas, tira tambem as teclas que o usam nos teclados guardados."""
         pasta = self._exigir_pasta_comandos()
         if id_ not in self.comandos:
             return False
@@ -313,8 +322,37 @@ class Aplicacao:
         def aplicar() -> None:
             self.comandos.pop(id_, None)
             gravar(pasta, self.comandos)
+            if remover_teclas:
+                self._remover_teclas_de_comando(id_)
 
         return self._com_aprovacao("definicoes", aplicar)
+
+    def teclados_com_comando(self, id_: str) -> list[str]:
+        """Nomes dos teclados guardados pelo utilizador que usam esta tecla de comando."""
+        return [layout.nome for _, layout in self._ficheiros_do_utilizador() if usa_comando(layout, id_)]
+
+    def _ficheiros_do_utilizador(self) -> list[tuple[Path, Layout]]:
+        pasta = self._pasta_layouts_utilizador
+        if pasta is None or not Path(pasta).is_dir():
+            return []
+        resultado = []
+        for ficheiro in Path(pasta).glob(f"*{EXTENSAO}"):
+            try:
+                resultado.append((ficheiro, carregar_layout(ficheiro)))
+            except LayoutInvalido:
+                continue
+        return resultado
+
+    def _remover_teclas_de_comando(self, id_: str) -> None:
+        for ficheiro, layout in self._ficheiros_do_utilizador():
+            if not usa_comando(layout, id_):
+                continue
+            modelo = modelo_de(layout)
+            remover_teclas_de_comando(modelo, id_)
+            gravar_modelo_em_ficheiro(modelo, ficheiro)
+        self.layouts = descobrir_layouts(self._pastas_layouts)
+        if self.layout.nome in self.layouts:
+            self.layout = self.layouts[self.layout.nome]
 
     def guardar_comandos_em_lote(self, lista: list[Comando]) -> bool:
         pasta = self._exigir_pasta_comandos()

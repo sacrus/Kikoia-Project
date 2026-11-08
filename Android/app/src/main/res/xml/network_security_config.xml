@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- O computador esta na rede local com um endereco que muda (ex.: 192.168.1.25), por isso nao
+     e possivel limitar por dominio. A ligacao e ws:// (sem TLS); o emparelhamento usa SPAKE2 e as
+     mensagens sao autenticadas com HMAC (ver protocolo.py). -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

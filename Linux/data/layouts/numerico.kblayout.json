@@ -1,6 +1,7 @@
 {
   "nome": "Numérico",
   "idioma": "pt-PT",
+  "atalho": {"rotulo": "Números"},
   "linhas": [
     [
       {"rotulo": "7", "acao": {"tipo": "texto", "valor": "7"}},
@@ -18,6 +19,7 @@
       {"rotulo": "3", "acao": {"tipo": "texto", "valor": "3"}}
     ],
     [
+      {"rotulo": "QWERTY", "acao": {"tipo": "navegar", "valor": "QWERTY"}, "largura": 2},
       {"rotulo": "0", "acao": {"tipo": "texto", "valor": "0"}, "largura": 2},
       {"rotulo": ",", "acao": {"tipo": "texto", "valor": ","}},
       {"rotulo": "Apagar", "acao": {"tipo": "tecla", "valor": "backspace"}, "largura": 2},

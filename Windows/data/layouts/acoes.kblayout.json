@@ -1,0 +1,24 @@
+{
+  "nome": "Ações",
+  "idioma": "pt-PT",
+  "atalho": {"rotulo": "Ações"},
+  "linhas": [
+    [
+      {"rotulo": "Apaga palavra", "acao": {"tipo": "acao", "valor": "apagar_palavra"}, "largura": 1.5},
+      {"rotulo": "Apaga linha", "acao": {"tipo": "acao", "valor": "apagar_linha"}, "largura": 1.5},
+      {"rotulo": "Seleciona palavra", "acao": {"tipo": "acao", "valor": "selecionar_palavra"}, "largura": 1.5},
+      {"rotulo": "Seleciona linha", "acao": {"tipo": "acao", "valor": "selecionar_linha"}, "largura": 1.5},
+      {"rotulo": "Ler seleção", "acao": {"tipo": "acao", "valor": "ler_selecao"}, "largura": 1.5}
+    ],
+    [
+      {"rotulo": "Navegar entre janelas", "acao": {"tipo": "acao", "valor": "navegar_janelas"}, "largura": 1.5},
+      {"rotulo": "Minimiza teclado", "acao": {"tipo": "acao", "valor": "minimizar_teclado"}, "largura": 1.5},
+      {"rotulo": "Fecha janela ativa", "acao": {"tipo": "acao", "valor": "fechar_janela"}, "largura": 1.5},
+      {"rotulo": "Minimiza janela ativa", "acao": {"tipo": "acao", "valor": "minimizar_janela"}, "largura": 1.5},
+      {"rotulo": "Maximiza janela ativa", "acao": {"tipo": "acao", "valor": "maximizar_janela"}, "largura": 1.5}
+    ],
+    [
+      {"rotulo": "QWERTY", "acao": {"tipo": "navegar", "valor": "QWERTY"}, "largura": 2}
+    ]
+  ]
+}

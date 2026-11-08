@@ -20,6 +20,7 @@ import json
 import logging
 import secrets
 import threading
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -41,6 +42,10 @@ from teclado.gateway.protocolo import (
 )
 
 PORTA_POR_OMISSAO = 47800
+# Heartbeat de aplicacao (Bluetooth nao tem o do WebSocket): ping a cada 15 s;
+# 45 s sem nenhuma mensagem do telemovel = ligacao perdida.
+INTERVALO_PING_S = 15.0
+TEMPO_SEM_SINAL_S = 45.0
 PEDIDO_DESCOBERTA = b"TECLADO-GW?"
 VERSAO = 1
 ID_CLIENTE = b"cliente"
@@ -95,6 +100,7 @@ class NucleoGateway:
         self._dispositivos: set[str] = set()
         # id(canal) -> (canal, sessao) dos telemoveis com sessao ativa.
         self._sessoes: dict[int, tuple[Any, Sessao]] = {}
+        self._ultimo_sinal: dict[int, float] = {}
 
     # --- estado -------------------------------------------------------------
 
@@ -203,6 +209,7 @@ class NucleoGateway:
 
     async def _tratar(self, canal) -> None:
         endereco = str(canal.remote_address)
+        log.info("Ligacao recebida de %s", endereco)
         try:
             chave_spake = await self._emparelhar(canal, endereco)
         except SemConfianca:
@@ -213,6 +220,9 @@ class NucleoGateway:
         except ProtocoloErro as erro:
             log.info("Emparelhamento recusado (%s): %s", endereco, erro)
             await canal.close(code=4003, reason="emparelhamento recusado")
+            return
+        except ConnectionClosed:
+            log.info("Telemovel desligou durante o emparelhamento (%s)", endereco)
             return
         except Exception:
             log.error("Erro no emparelhamento (%s)", endereco, exc_info=True)
@@ -225,10 +235,14 @@ class NucleoGateway:
         sessao = Sessao(chave_sessao(chave_spake))
         self._dispositivos.add(endereco)
         self._sessoes[id(canal)] = (canal, sessao)
+        self._ultimo_sinal[id(canal)] = time.monotonic()
         self._ao_emparelhar(endereco)
+        vigia = None
         try:
             await self._estado_inicial(canal, sessao)
+            vigia = asyncio.create_task(self._vigiar(canal, sessao, endereco))
             async for dados in canal:
+                self._ultimo_sinal[id(canal)] = time.monotonic()
                 try:
                     msg = sessao.receber(dados if isinstance(dados, bytes) else dados.encode("utf-8"))
                 except ProtocoloErro as erro:
@@ -239,9 +253,32 @@ class NucleoGateway:
         except (ConnectionError, OSError):
             pass  # ligacao perdida: tratada no finally
         finally:
+            if vigia is not None:
+                vigia.cancel()
+            # getattr: o canal Bluetooth nao tem close_code (so o WebSocket tem).
+            log.info("Ligacao de %s terminada (codigo %s)", endereco, getattr(canal, "close_code", "-"))
             self._sessoes.pop(id(canal), None)
+            self._ultimo_sinal.pop(id(canal), None)
             self._dispositivos.discard(endereco)
             self._ao_desligar(endereco)
+
+    async def _vigiar(self, canal, sessao: Sessao, endereco: str) -> None:
+        """Ping de aplicacao a cada INTERVALO_PING_S. Sem sinal do telemovel durante
+        TEMPO_SEM_SINAL_S, a ligacao e dada como perdida (ex.: Bluetooth que caiu sem aviso)."""
+        while True:
+            await asyncio.sleep(INTERVALO_PING_S)
+            silencio = time.monotonic() - self._ultimo_sinal.get(id(canal), 0.0)
+            if silencio > TEMPO_SEM_SINAL_S:
+                log.info("Telemovel %s sem sinal ha %.0f s: ligacao dada como perdida", endereco, silencio)
+                try:
+                    await canal.close(code=1001, reason="sem sinal")
+                except Exception:
+                    pass
+                return
+            try:
+                await canal.send(sessao.enviar("ping", secrets.token_hex(4)))
+            except Exception:
+                return  # a ligacao ja caiu: o ciclo de receção trata do resto
 
     async def _estado_inicial(self, canal, sessao: Sessao) -> None:
         """Teclado ativo e sugestoes atuais, logo apos o emparelhamento."""

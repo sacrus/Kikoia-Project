@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -60,6 +61,8 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.semantics.contentDescription
@@ -140,6 +143,11 @@ private fun permissoesNecessarias(): Array<String> {
 /** Um destino de ligacao: nome para mostrar e a forma de arrancar o transporte. */
 private class Destino(val nome: String, val endereco: String?, val arrancar: (LigacaoGateway) -> Unit)
 
+/** Reconexao: 2 s, 4 s, 8 s, 16 s e depois 30 s entre tentativas; ao fim de ~10 min desiste. */
+private const val MAX_TENTATIVAS_RECONEXAO = 20
+
+private fun atrasoReconexao(tentativa: Int): Long = minOf(30_000L, 2_000L shl (tentativa - 1).coerceAtMost(4))
+
 /** Prefixo da chave de confianca dos computadores ligados por Wi-Fi (o nome identifica o computador). */
 private const val PREFIXO_WIFI = "wifi:"
 
@@ -159,6 +167,10 @@ fun AppTeclado(preferencias: SharedPreferences, escuro: Boolean, onAlternarTema:
     val dispositivosBt = remember { mutableStateListOf<BluetoothDevice>() }
     var codigo by remember { mutableStateOf("") }
     var ligacao by remember { mutableStateOf<LigacaoGateway?>(null) }
+    // Reconexao automatica de uma ligacao de confianca que caiu (tentativas com espera crescente).
+    var reconectando by remember { mutableStateOf(false) }
+    var tentativasReconexao by remember { mutableStateOf(0) }
+    var trabalhoReconexao by remember { mutableStateOf<Job?>(null) }
     var estado by remember { mutableStateOf("") }
     var erro by remember { mutableStateOf<String?>(null) }
     // Teclado e sugestoes sao sempre os que o computador envia (nao ha escolha local).
@@ -180,6 +192,16 @@ fun AppTeclado(preferencias: SharedPreferences, escuro: Boolean, onAlternarTema:
         tela = Tela.PROCURAR
     }
 
+    // Reconexao (ver ouvinte): atribuida depois de iniciarLigacao existir.
+    var reconectarDestino: (Destino) -> Unit = {}
+
+    fun pararReconexao() {
+        trabalhoReconexao?.cancel()
+        trabalhoReconexao = null
+        reconectando = false
+        tentativasReconexao = 0
+    }
+
     fun ouvinte(endereco: String?) = object : OuvinteGateway {
         override fun aoEstado(texto: String) {
             principal.post { estado = texto }
@@ -188,6 +210,8 @@ fun AppTeclado(preferencias: SharedPreferences, escuro: Boolean, onAlternarTema:
         override fun aoLigar() {
             principal.post {
                 erro = null
+                reconectando = false
+                tentativasReconexao = 0
                 tela = Tela.TECLADO
             }
         }
@@ -206,10 +230,27 @@ fun AppTeclado(preferencias: SharedPreferences, escuro: Boolean, onAlternarTema:
 
         override fun aoFechar(motivo: String?) {
             principal.post {
+                val d = destino
                 ligacao = null
                 estado = ""
-                erro = motivo
-                if (tela == Tela.TECLADO) tela = Tela.PROCURAR
+                // Ligacao de confianca que estava ativa (ou a reconectar) cai: tenta de novo, sem codigo.
+                val deveReconectar = endereco != null && d != null && d.endereco == endereco &&
+                    Confiancas.ler(preferencias, endereco) != null &&
+                    (tela == Tela.TECLADO || reconectando)
+                if (deveReconectar && tentativasReconexao < MAX_TENTATIVAS_RECONEXAO) {
+                    reconectando = true
+                    tentativasReconexao += 1
+                    erro = null
+                    trabalhoReconexao?.cancel()
+                    trabalhoReconexao = escopo.launch {
+                        delay(atrasoReconexao(tentativasReconexao))
+                        reconectarDestino(d!!)
+                    }
+                } else {
+                    pararReconexao()
+                    erro = motivo
+                    if (tela == Tela.TECLADO) tela = Tela.PROCURAR
+                }
             }
         }
 
@@ -229,6 +270,16 @@ fun AppTeclado(preferencias: SharedPreferences, escuro: Boolean, onAlternarTema:
         }
     }
 
+    // Com confianca liga sem codigo; sem ela usa o codigo de 6 digitos do computador.
+    fun iniciarLigacao(d: Destino, digitos: String?, confianca: Confianca?) {
+        erro = null
+        estado = recurso(R.string.and_ligar)
+        val nova = LigacaoGateway(d.nome, digitos, confianca, ouvinte(d.endereco))
+        ligacao = nova
+        d.arrancar(nova)
+    }
+    reconectarDestino = { d -> iniciarLigacao(d, null, d.endereco?.let { Confiancas.ler(preferencias, it) }) }
+
     // Tudo o que se carrega no telemovel vai para o computador, que decide e devolve o estado.
     // Mudar de teclado ("navegar") tambem e feito no computador, que envia o novo teclado.
     fun premirTecla(tipo: String, valor: String) {
@@ -237,15 +288,6 @@ fun AppTeclado(preferencias: SharedPreferences, escuro: Boolean, onAlternarTema:
 
     fun escolherSugestao(indice: Int) {
         ligacao?.escolherSugestao(indice)
-    }
-
-    // Com confianca liga sem codigo; sem ela usa o codigo de 6 digitos do computador.
-    fun iniciarLigacao(d: Destino, digitos: String?, confianca: Confianca?) {
-        erro = null
-        estado = recurso(R.string.and_ligar)
-        val nova = LigacaoGateway(d.nome, digitos, confianca, ouvinte(d.endereco))
-        ligacao = nova
-        d.arrancar(nova)
     }
 
     fun ligar() {
@@ -364,7 +406,8 @@ fun AppTeclado(preferencias: SharedPreferences, escuro: Boolean, onAlternarTema:
         )
 
         Tela.TECLADO -> EcraTeclado(
-            nomeComputador = destino?.nome ?: "",
+            nomeComputador = (destino?.nome ?: "") +
+                if (reconectando) " · " + recurso(R.string.and_reconectando) else "",
             teclado = teclado,
             sugestoes = sugestoes,
             onSugestao = ::escolherSugestao,
@@ -379,6 +422,7 @@ fun AppTeclado(preferencias: SharedPreferences, escuro: Boolean, onAlternarTema:
             onAlternarTema = onAlternarTema,
             onTecla = ::premirTecla,
             onDesligar = {
+                pararReconexao()
                 ligacao?.fechar()
                 ligacao = null
                 tela = Tela.PROCURAR
@@ -456,7 +500,22 @@ private fun EcraProcurar(
     onAlternarVerificacao: () -> Unit,
 ) {
     var avisoVisto by remember { mutableStateOf(false) }
+    var mostrarAvisoWifi by remember { mutableStateOf(false) }
     val contexto = LocalContext.current
+    if (mostrarAvisoWifi) {
+        AlertDialog(
+            onDismissRequest = { mostrarAvisoWifi = false },
+            text = { Text(recurso(R.string.and_wifi_aviso), fontSize = 16.sp) },
+            confirmButton = {
+                TextButton(onClick = { mostrarAvisoWifi = false; onProcurar() }) {
+                    Text(recurso(R.string.and_continuar))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { mostrarAvisoWifi = false }) { Text(recurso(R.string.and_cancelar)) }
+            },
+        )
+    }
     Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
         AvisoHorizontal(visivel = !avisoVisto, onFechar = { avisoVisto = true })
         if (atualizacao != null) {
@@ -484,9 +543,37 @@ private fun EcraProcurar(
             Spacer(Modifier.height(8.dp))
         }
 
+        // Bluetooth primeiro: e o caminho recomendado. Wi-Fi so como alternativa.
+        Text(recurso(R.string.and_bt_rotulo), fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(6.dp))
+        OutlinedButton(onClick = onAtualizarBt, modifier = Modifier.fillMaxWidth().height(48.dp)) {
+            Text(recurso(R.string.and_atualizar_lista), fontSize = 18.sp)
+        }
+        Spacer(Modifier.height(6.dp))
+        if (dispositivosBt.isEmpty()) {
+            Text(
+                recurso(R.string.and_nenhum_bt_1) +
+                    recurso(R.string.and_nenhum_bt_2),
+                fontSize = 16.sp,
+            )
+        }
+        dispositivosBt.forEach { dispositivo ->
+            OutlinedButton(
+                onClick = { onEscolherBt(dispositivo) },
+                modifier = Modifier.fillMaxWidth().height(64.dp).padding(vertical = 4.dp),
+            ) {
+                Text(dispositivo.name ?: recurso(R.string.and_computador), fontSize = 20.sp)
+            }
+        }
+
+        Spacer(Modifier.height(20.dp))
         Text(recurso(R.string.and_wifi_rotulo), fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(6.dp))
-        Button(onClick = onProcurar, enabled = !aProcurar, modifier = Modifier.fillMaxWidth().height(56.dp)) {
+        Button(
+            onClick = { mostrarAvisoWifi = true },
+            enabled = !aProcurar,
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+        ) {
             if (aProcurar) {
                 CircularProgressIndicator(modifier = Modifier.height(24.dp), strokeWidth = 2.dp)
                 Spacer(Modifier.width(12.dp))
@@ -507,29 +594,6 @@ private fun EcraProcurar(
                 modifier = Modifier.fillMaxWidth().height(64.dp).padding(vertical = 4.dp),
             ) {
                 Text(pc.nome, fontSize = 20.sp)
-            }
-        }
-
-        Spacer(Modifier.height(20.dp))
-        Text(recurso(R.string.and_bt_rotulo), fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(6.dp))
-        OutlinedButton(onClick = onAtualizarBt, modifier = Modifier.fillMaxWidth().height(48.dp)) {
-            Text(recurso(R.string.and_atualizar_lista), fontSize = 18.sp)
-        }
-        Spacer(Modifier.height(6.dp))
-        if (dispositivosBt.isEmpty()) {
-            Text(
-                recurso(R.string.and_nenhum_bt_1) +
-                    recurso(R.string.and_nenhum_bt_2),
-                fontSize = 16.sp,
-            )
-        }
-        dispositivosBt.forEach { dispositivo ->
-            OutlinedButton(
-                onClick = { onEscolherBt(dispositivo) },
-                modifier = Modifier.fillMaxWidth().height(64.dp).padding(vertical = 4.dp),
-            ) {
-                Text(dispositivo.name ?: recurso(R.string.and_computador), fontSize = 20.sp)
             }
         }
 

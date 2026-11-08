@@ -2,7 +2,8 @@
 
 A marca combinatoria junta-se a letra seguinte (NFC). O sinal isolado sai
 quando nao ha combinacao possivel, ou quando o acento nao e seguido de letra.
-So se combinam as letras em que o acento existe em portugues.
+So se combinam as letras em que o acento existe nas linguas suportadas
+(portugues, espanhol, frances e alemao, nos casos mais usados).
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ ACENTOS: dict[str, tuple[str, str]] = {
     "grave": ("\u0300", "`"),
     "circunflexo": ("\u0302", "^"),
     "til": ("\u0303", "~"),
+    "trema": ("\u0308", "\u00a8"),
 }
 
 _VOGAIS = "aeiouAEIOU"
@@ -21,7 +23,8 @@ COMBINAVEIS: dict[str, frozenset[str]] = {
     "agudo": frozenset(_VOGAIS),
     "grave": frozenset("aeiouAEIOU"),
     "circunflexo": frozenset(_VOGAIS),
-    "til": frozenset("aoAO"),
+    "til": frozenset("aoAOnN"),  # n + til = ñ (espanhol)
+    "trema": frozenset(_VOGAIS),  # ü, ï, ë, ö, ä (alemão, francês, ...)
 }
 
 

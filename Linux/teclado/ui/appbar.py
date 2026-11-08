@@ -61,6 +61,13 @@ class BarraInferior:
     def registada(self) -> bool:
         return self._ativa
 
+    def preparar(self, wid: int) -> None:
+        """Nada a fazer no Windows (so existe em X11)."""
+
+    def area_base(self) -> None:
+        """So existe em X11: no Windows a area util e lida com area_de_trabalho()."""
+        return None
+
     def _dados(self, rc: _RECT | None = None) -> _APPBARDATA:
         dados = _APPBARDATA()
         dados.cbSize = ctypes.sizeof(_APPBARDATA)

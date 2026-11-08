@@ -19,6 +19,7 @@ from teclado.core.dicionario import Dicionario
 from teclado.core.editor import Editor
 from teclado.core.paths import DADOS_PROJETO, RAIZ, pasta_dados_utilizador
 from teclado.core.reinicio import ARGUMENTO, comando_do_processo
+from teclado.core.simbolos import simbolos_para
 from teclado.core.perfil import RepositorioPerfis, criar_perfil
 from teclado.core.captura_teclado import CapturaTeclado
 from teclado.core.ia import carregar_config, guardar_config
@@ -34,7 +35,6 @@ from teclado.core.voz import (
 from teclado.ui.definicoes import (
     ACAO_EDITAR,
     ACAO_ATUALIZACOES,
-    ACAO_COMANDOS,
     ACAO_FISICO,
     ACAO_GATEWAY,
     ACAO_IA,
@@ -51,14 +51,13 @@ from teclado.ui.janela import JanelaTeclado
 from teclado.ui.supervisao import DialogoSupervisao
 from teclado.ui.voz_opcoes import DialogoOpcoesVoz
 from teclado.core.comandos import Comando, ComandoErro
-from teclado.ui.comandos_ui import DialogoComandos
 from teclado.gateway.acoes import aplicar_acao_remota
 from teclado.core import arranque, atualizacao, idiomas
 from teclado.ui.atualizacoes import DialogoAtualizacoes
 from teclado.ui.instancia import ServidorInstancia, ja_em_execucao
 from teclado.gateway.confianca import RepositorioConfianca, dispositivos_emparelhados, pode_ser_emparelhado
 from teclado.gateway.controlador import ControladorGateway
-from teclado.core.layout_editor import modelo_de
+from teclado.core.layout_editor import modelo_de, rotular_comandos
 from teclado.ui.gateway_opcoes import DialogoGateway
 
 
@@ -68,6 +67,14 @@ def _registar_erros(pasta):
     caminho = pasta / "erros.log"
     logging.basicConfig(filename=caminho, level=logging.ERROR,
                         format="%(asctime)s %(message)s", encoding="utf-8")
+    # erros.log so guarda ERROR (o manipulador nao aceita INFO, mesmo vindo do gateway).
+    logging.getLogger().handlers[0].setLevel(logging.ERROR)
+    # Eventos das ligacoes Wi-Fi/Bluetooth (ligacao.log): ajudam a perceber falhas de emparelhamento.
+    registo_ligacoes = logging.FileHandler(pasta / "ligacao.log", encoding="utf-8")
+    registo_ligacoes.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    gateway_log = logging.getLogger("teclado.gateway")
+    gateway_log.setLevel(logging.INFO)
+    gateway_log.addHandler(registo_ligacoes)
 
     def gancho(tipo, valor, tb):
         logging.error("".join(traceback.format_exception(tipo, valor, tb)))
@@ -172,6 +179,7 @@ def main() -> int:
         controlador.saida,
         dicionario,
         max_sugestoes=int(perfil.preferencias.get("max_sugestoes", 5)),
+        simbolos_shift=simbolos_para(idiomas.atual()),
     )
 
     # --- voz -----------------------------------------------------------------
@@ -182,8 +190,8 @@ def main() -> int:
     motivo_falar = None
     try:
         # Sem voz escolhida, usa a portuguesa instalada (senao a do sistema, que pode ser inglesa).
-        voz_inicial = controlador.preferencias_voz()["voz_id"] or escolher_voz_portuguesa(vozes_disponiveis())
-        sintese = criar_sintese(voz_inicial)
+        voz_inicial = controlador.preferencias_voz()["voz_id"] or escolher_voz_portuguesa(vozes_disponiveis(pasta, idiomas.atual()))
+        sintese = criar_sintese(voz_inicial, pasta, idiomas.atual())
     except VozIndisponivel as erro:
         motivo_falar = str(erro)
 
@@ -268,14 +276,19 @@ def main() -> int:
 
     editor.ligar_leitura_selecao(ler_selecao)
 
+    def com_nomes_atuais(layout):
+        # Nome de cada tecla de comando vem do comando (ver rotular_comandos).
+        # Teclas de um idioma especifico (ex.: ñ) so aparecem com esse idioma selecionado.
+        return rotular_comandos(layout, controlador.comandos).para_idioma(idiomas.atual())
+
     def sincronizar_telemovel() -> None:
         # O telemovel mostra sempre o teclado ativo no PC.
-        gateway.atualizar_teclado(modelo_de(controlador.layout))
+        gateway.atualizar_teclado(modelo_de(com_nomes_atuais(controlador.layout)))
 
     def navegar(nome: str) -> None:
         novo = controlador.voltar_teclado() if nome == NAVEGAR_ANTERIOR else controlador.navegar_para(nome)
         if novo is not None:
-            janela.montar(novo)
+            janela.montar(com_nomes_atuais(novo))
             sincronizar_telemovel()
 
     # --- acoes das definicoes (correm com o teclado recolhido) -----------
@@ -283,7 +296,7 @@ def main() -> int:
     def opcoes_voz() -> None:
         nonlocal sintese, motivo_falar
         dialogo = DialogoOpcoesVoz(
-            None, controlador.preferencias_voz(), vozes_disponiveis(),
+            None, controlador.preferencias_voz(), vozes_disponiveis(pasta, idiomas.atual()),
             pasta_dados=pasta, idioma=idiomas.atual(),
         )
         resultado = executar_dialogo(dialogo)
@@ -300,7 +313,7 @@ def main() -> int:
             sintese.fechar()
         sintese, motivo_falar = None, None
         try:
-            sintese = criar_sintese(escolhas["voz_id"] or escolher_voz_portuguesa(vozes_disponiveis()))
+            sintese = criar_sintese(escolhas["voz_id"] or escolher_voz_portuguesa(vozes_disponiveis(pasta, idiomas.atual())), pasta, idiomas.atual())
         except VozIndisponivel as erro:
             motivo_falar = str(erro)
         sincronizar_voz()
@@ -316,9 +329,11 @@ def main() -> int:
             apagar=controlador.apagar_layout,
             comandos=controlador.comandos,
             guardar_comando=controlador.guardar_comando,
+            apagar_comando=controlador.apagar_comando,
+            teclados_com_comando=controlador.teclados_com_comando,
         )
         executar_dialogo(dialogo)
-        janela.montar(controlador.layout)
+        janela.montar(com_nomes_atuais(controlador.layout))
         sincronizar_telemovel()
 
     def personalizar_tema() -> None:
@@ -349,7 +364,7 @@ def main() -> int:
         if escolhas["layout"] != controlador.layout.nome:
             novo = controlador.mudar_layout(escolhas["layout"])
             if novo is not None:
-                janela.montar(novo)
+                janela.montar(com_nomes_atuais(novo))
                 sincronizar_telemovel()
         if escolhas["tema"] != controlador.tema.nome:
             novo = controlador.mudar_tema(escolhas["tema"])
@@ -391,8 +406,6 @@ def main() -> int:
             abrir_gateway()
         elif escolhas["acao"] == ACAO_ATUALIZACOES:
             executar_dialogo(DialogoAtualizacoes(None))
-        elif escolhas["acao"] == ACAO_COMANDOS:
-            abrir_comandos()
 
     def opcoes_fisico() -> None:
         prefs = controlador.preferencias_fisico()
@@ -436,7 +449,7 @@ def main() -> int:
                 idiomas.t("geral.nao_aprovado"),
             )
             return
-        janela.montar(guardado)
+        janela.montar(com_nomes_atuais(guardado))
         sincronizar_telemovel()
 
     def abrir_definicoes() -> None:
@@ -538,12 +551,6 @@ def main() -> int:
             logging.error("Tecla personalizada falhou: %s", erro)
             notificar(str(erro))
 
-    def abrir_comandos() -> None:
-        dialogo = DialogoComandos(
-            None, controlador.comandos, controlador.guardar_comando, controlador.apagar_comando,
-        )
-        executar_dialogo(dialogo)
-
     def tratar_remoto(msg: dict) -> None:
         # Chega ja na thread do Qt (sinal). Navegacao e sugestoes mudam o estado do PC.
         if msg["tipo"] == "interruptor":
@@ -571,7 +578,7 @@ def main() -> int:
         ao_acao=ponte_gw.acao.emit,
         ao_ligar=ponte_gw.ligado.emit,
         ao_desligar=ponte_gw.desligado.emit,
-        fornecer_teclado=lambda: modelo_de(controlador.layout),
+        fornecer_teclado=lambda: modelo_de(com_nomes_atuais(controlador.layout)),
         fornecer_sugestoes=lambda: list(editor.sugestoes),
         fornecer_interruptores=lambda: estado_interruptores(),
         confianca=confianca,

@@ -98,7 +98,8 @@ def descarregar(
             zip_.extractall(extraido)
         pastas = [p for p in extraido.iterdir() if p.is_dir()]
         origem = pastas[0] if len(pastas) == 1 else extraido
-        if not (origem / "am").is_dir():
+        # Os modelos Vosk tem dois layouts: am/final.mdl (mais recentes) ou final.mdl na raiz (ex.: pt 0.3).
+        if not ((origem / "am").is_dir() or (origem / "final.mdl").is_file()):
             raise ModeloErro("O modelo transferido nao tem a estrutura esperada.")
         if destino.exists():
             shutil.rmtree(destino)

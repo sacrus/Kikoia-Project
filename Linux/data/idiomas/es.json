@@ -288,5 +288,21 @@
   "tecla.capslock": "Bloq Mayús",
   "tecla.tab": "Tab",
   "tecla.esc": "Esc",
-  "tecla.delete": "Supr"
+  "tecla.delete": "Supr",
+  "editor.teclas_personalizadas": "Teclas personalizadas",
+  "editor.teclas_personalizadas_dica": "Crear, cambiar o borrar programas y comandos. Con una tecla de comando seleccionada, abre esa tecla.",
+  "editor.comando_alterado": "Tecla «{rotulo}» modificada.",
+  "editor.comando_apagado": "Tecla «{rotulo}» borrada.",
+  "cmd.remover_teclas": "Esta tecla de comando está en: {lista}. ¿Quitar también esas teclas de los teclados?",
+  "editor.simbolo_shift": "Símbolo con Shift",
+  "editor.simbolo_shift_dica": "opcional",
+  "voz.piper_secao": "Voz de Hablar (Linux)",
+  "voz.piper_instalada": "Voz portuguesa instalada.",
+  "voz.piper_nao_instalada": "Voz no instalada. Hablar no estará disponible hasta descargarla.",
+  "voz.piper_sem_idioma": "No hay voz de lectura para este idioma.",
+  "voz.piper_descarregar": "Descargar la voz ({mb} MB)",
+  "voz.piper_confirmar": "¿Descargar la voz portuguesa (unos {mb} MB)?",
+  "voz.piper_ativar": "Voz instalada y seleccionada. Pulse OK para usarla.",
+  "gateway.bluetooth_recomendado": "Bluetooth (Recomendado)",
+  "gateway.aviso_wifi": "Puede que necesite configuraciones adicionales, como configurar el reenvío de puertos en el router."
 }

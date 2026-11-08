@@ -11,6 +11,7 @@ minima (Sugestoes, Voz, roda dentada). Tudo o resto esta nas Definicoes.
 from __future__ import annotations
 
 import math
+import sys
 from collections.abc import Callable
 
 from PySide6.QtCore import QPointF, QRect, QSize, Qt, QTimer
@@ -34,11 +35,15 @@ from PySide6.QtWidgets import (
 )
 
 from teclado.core.editor import Editor
+from teclado.core import idiomas
 from teclado.core.idiomas import t
 from teclado.core.layout import Layout, Tecla
 from teclado.core.tema import Tema
 from teclado.core.rotulos import rotulo_tecla
-from teclado.ui.appbar import BarraInferior
+if sys.platform.startswith("linux"):
+    from teclado.ui.appbar_x11 import BarraInferiorX11 as BarraInferior
+else:
+    from teclado.ui.appbar import BarraInferior
 from teclado.ui.botao_tecla import BotaoTecla
 from teclado.ui.interruptor import Interruptor
 from teclado.ui.medidor import Medidor
@@ -133,9 +138,12 @@ class JanelaTeclado(QWidget):
         ao_comando: Callable[[str], object] | None = None,
         ao_fechar: Callable[[], object] | None = None,
     ) -> None:
+        # Sem barra de titulo (igual em Windows e Linux): o teclado e a faixa do fundo do ecra,
+        # e a barra sobrepunha-se as janelas. Fechar faz-se pelo botao Sair.
         super().__init__(
             None,
             Qt.WindowType.Tool
+            | Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
             | Qt.WindowType.WindowDoesNotAcceptFocus,
         )
@@ -149,6 +157,7 @@ class JanelaTeclado(QWidget):
         self._ao_fechar = ao_fechar or (lambda: None)
         self._ancorar_fundo = ancorar_fundo
         self._barra = BarraInferior()
+        self._barra.preparar(int(self.winId()))  # antes de mostrar: o gestor de janelas le o tipo ao mapear
         self._ao_falar_toggle: Callable[[bool], None] = lambda ativo: None
         self._ao_ditar_toggle: Callable[[bool], None] = lambda ativo: None
         self._modelo_layout: Layout | None = None
@@ -161,6 +170,7 @@ class JanelaTeclado(QWidget):
         self._opacidade = 1.0
         self._tamanho_fonte = tema.tamanho_fonte
         self._botoes_teclas: list[BotaoTecla] = []
+        self._teclas_texto: list[tuple[BotaoTecla, Tecla]] = []
 
         raiz = QVBoxLayout(self)
         raiz.setContentsMargins(6, 6, 6, 6)
@@ -205,6 +215,10 @@ class JanelaTeclado(QWidget):
         self._botao_definicoes = _botao_sem_foco("")
         self._botao_definicoes.setIconSize(QSize(26, 26))
         self._botao_definicoes.setFixedSize(40, 40)
+        # Sem barra de titulo (o teclado e reservado como faixa do ecra), este botao fecha o Kikoia.
+        self._botao_sair = _botao_sem_foco(t("tray.sair"))
+        self._botao_sair.setFixedHeight(40)
+        self._botao_sair.clicked.connect(lambda _=False: self.close())
         self._botao_definicoes.setToolTip(t("janela.definicoes_dica"))
         self._botao_definicoes.clicked.connect(lambda _=False: self._pedir_definicoes())
 
@@ -218,6 +232,8 @@ class JanelaTeclado(QWidget):
         self._aviso.setVisible(False)
 
         # Indicador do teclado fisico: visivel sempre que as teclas estao a ser observadas.
+        # Nome do teclado ativo (o titulo da janela deixou de se ver sem a barra de titulo).
+        self._etiqueta_layout = QLabel()
         self._indicador_fisico = QLabel(t("janela.teclado_fisico"))
         self._indicador_fisico.setStyleSheet(
             "color:#E53935; font-weight:bold; padding:4px 6px; border:1px solid #E53935; border-radius:6px;"
@@ -232,7 +248,9 @@ class JanelaTeclado(QWidget):
         barra.addWidget(self._medidor)
         barra.addWidget(self._aviso)
         barra.addWidget(self._indicador_fisico)
+        barra.addWidget(self._etiqueta_layout)
         barra.addStretch(1)
+        barra.addWidget(self._botao_sair)
         barra.addWidget(self._botao_definicoes)
         return barra
 
@@ -310,7 +328,8 @@ class JanelaTeclado(QWidget):
         return botao
 
     def montar(self, layout: Layout) -> None:
-        """Reconstroi as teclas a partir do layout."""
+        """Reconstroi as teclas a partir do layout, so com as teclas da lingua selecionada."""
+        layout = layout.para_idioma(idiomas.atual())
         while self._area_teclas.count():
             item = self._area_teclas.takeAt(0)
             antiga = item.widget()
@@ -320,6 +339,7 @@ class JanelaTeclado(QWidget):
                 antiga.deleteLater()
         self._botoes_modificador.clear()
         self._botoes_teclas.clear()
+        self._teclas_texto = []
 
         for linha in layout.linhas:
             fila = QWidget()
@@ -329,6 +349,8 @@ class JanelaTeclado(QWidget):
             for tecla in linha:
                 rotulo = rotulo_tecla(tecla.acao.tipo, tecla.acao.valor, tecla.rotulo)
                 botao = self._botao_tecla(rotulo, lambda t=tecla: self._premir(t))
+                if tecla.acao.tipo == "texto":
+                    self._teclas_texto.append((botao, tecla))
                 if tecla.acao.tipo == "modificador":
                     botao.setCheckable(True)
                     self._botoes_modificador[tecla.acao.valor] = botao
@@ -337,6 +359,8 @@ class JanelaTeclado(QWidget):
 
         self._modelo_layout = layout
         self.setWindowTitle(t("janela.titulo", nome=layout.nome))
+        self._etiqueta_layout.setText(layout.nome)
+        self._atualizar_simbolos_shift()
 
     def _atualizar_sugestoes(self) -> None:
         palavras = self._editor.sugestoes
@@ -360,9 +384,24 @@ class JanelaTeclado(QWidget):
         # Cada modificador (shift, ctrl) reflete o estado do editor com o mesmo nome.
         for nome, botao in self._botoes_modificador.items():
             botao.setChecked(bool(getattr(self._editor, nome, False)))
+        self._atualizar_simbolos_shift()
+
+    def _atualizar_simbolos_shift(self) -> None:
+        """Com Shift ativo, cada tecla de texto mostra o simbolo que escreve com Shift."""
+        for botao, tecla in self._teclas_texto:
+            novo = tecla.rotulo
+            if self._editor.shift:
+                simbolo = tecla.shift or self._editor.simbolo_shift(tecla.acao.valor)
+                valor = tecla.acao.valor
+                if simbolo:
+                    novo = simbolo
+                elif len(valor) == 1 and valor.isalpha():
+                    novo = valor.upper()  # letras: com Shift mostram a maiuscula, como no teclado fisico
+            botao.definir_texto(novo)
 
     def aplicar_tema(self, tema: Tema) -> None:
         self._cor_fundo = QColor(tema.cor_fundo)
+        self._etiqueta_layout.setStyleSheet(f"color:{tema.cor_texto}; padding:4px 6px;")
         self._tamanho_fonte = tema.tamanho_fonte
         for botao in self._botoes_teclas:
             botao.definir_tamanho_base(tema.tamanho_fonte)
@@ -383,7 +422,10 @@ class JanelaTeclado(QWidget):
         ecra = QGuiApplication.primaryScreen()
         area = ecra.availableGeometry()
         ratio = ecra.devicePixelRatio() or 1.0
-        altura = max(ALTURA_MINIMA, int(area.height() * ALTURA_RELATIVA))
+        # Com X11, a altura vem da area util sem o proprio teclado (a reserva demora a ser atualizada pelo gestor).
+        base = self._barra.area_base()
+        altura_de_referencia = base[3] / ratio if base is not None else area.height()
+        altura = max(ALTURA_MINIMA, int(altura_de_referencia * ALTURA_RELATIVA))
         self._barra.remover()  # se ja estava registada (ex.: reaberta), refaz de forma limpa
         if self._ancorar_fundo and self._barra.registar(int(self.winId())):
             posicao = self._barra.posicionar(round(altura * ratio))
@@ -427,7 +469,9 @@ class JanelaTeclado(QWidget):
 
     def _premir(self, tecla: Tecla) -> None:
         if tecla.acao.tipo == "texto":
-            self._editor.texto(tecla.acao.valor)
+            # Com Shift ativo, a tecla escreve o seu simbolo proprio (se o tiver).
+            valor = tecla.shift if (tecla.shift and self._editor.shift) else tecla.acao.valor
+            self._editor.texto(valor)
         elif tecla.acao.tipo == "modificador":
             self._editor.modificador(tecla.acao.valor)
         elif tecla.acao.tipo == "acento":

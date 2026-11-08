@@ -17,6 +17,9 @@ import java.io.IOException
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
+/** Tempo maximo para o computador aceitar a ligacao Bluetooth. */
+private const val LIMITE_LIGACAO_BT_MS = 15_000L
+
 /** Servico SPP: o mesmo UUID anunciado pelo PC no Bluetooth. */
 val UUID_SPP: UUID = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb")
 
@@ -58,11 +61,15 @@ class TransporteWifi(
         }
 
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-            ligacao.aoFechar(motivoDoFecho(code))
+            ligacao.aoFechar("${motivoDoFecho(code)} [codigo $code${if (reason.isNotEmpty()) ": $reason" else ""}]")
         }
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-            ligacao.aoFechar(recurso(R.string.and_wifi_falhou))
+            // Detalhe tecnico para diagnostico (tipo de erro, mensagem e resposta HTTP, se houver).
+            val http = response?.let { " HTTP ${it.code}" } ?: ""
+            ligacao.aoFechar(
+                recurso(R.string.and_wifi_falhou) + " [${t.javaClass.simpleName}: ${t.message ?: "sem mensagem"}$http]",
+            )
         }
     }
 }
@@ -77,14 +84,25 @@ class TransporteBluetooth(
 ) : Transporte {
     private var socket: BluetoothSocket? = null
     private val escrita = Any()
+    @Volatile private var ligado = false
 
     @SuppressLint("MissingPermission")
     fun ligar() {
+        // Sem resposta do computador, a tentativa e cancelada (fecha o socket e o connect() falha).
+        Thread {
+            try {
+                Thread.sleep(LIMITE_LIGACAO_BT_MS)
+            } catch (_: InterruptedException) {
+                return@Thread
+            }
+            if (!ligado) fecharSocket()
+        }.apply { isDaemon = true; name = "bluetooth-limite" }.start()
         Thread {
             try {
                 val s = dispositivo.createRfcommSocketToServiceRecord(UUID_SPP)
                 socket = s
                 s.connect()
+                ligado = true
                 ligacao.aoAbrir(this)
                 val entrada = s.inputStream
                 while (true) {

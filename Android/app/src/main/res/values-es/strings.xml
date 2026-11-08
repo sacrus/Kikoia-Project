@@ -33,7 +33,7 @@
     <string name="and_procurar">Buscar ordenadores</string>
     <string name="and_nenhum_wifi_1">No se encontró ningún ordenador. Compruebe que el Kikoia está abierto en el ordenador, </string>
     <string name="and_nenhum_wifi_2">que ambos están en la misma red Wi-Fi y que Windows permite la conexión (Firewall).</string>
-    <string name="and_bt_rotulo">Bluetooth (emparejado)</string>
+    <string name="and_bt_rotulo">Bluetooth (Recomendado)</string>
     <string name="and_atualizar_lista">Actualizar lista</string>
     <string name="and_nenhum_bt_1">No hay ningún ordenador emparejado. Empareje el teléfono con el ordenador en los ajustes </string>
     <string name="and_nenhum_bt_2">de Bluetooth de Android y pulse «Actualizar lista».</string>
@@ -42,6 +42,10 @@
     <string name="and_codigo_rotulo">Código de 6 dígitos</string>
     <string name="and_emparelhar">Emparejar</string>
     <string name="and_voltar">Volver</string>
+    <string name="and_cancelar">Cancelar</string>
+    <string name="and_reconectando">Reconectando…</string>
+    <string name="and_sem_sinal">El ordenador dejó de responder.</string>
+    <string name="and_wifi_aviso">Puede que necesite configuraciones adicionales, como configurar el reenvío de puertos en el router.</string>
     <string name="and_desligar">Desconectar</string>
     <string name="and_aguardar">Esperando el teclado del ordenador…</string>
     <string name="and_emparelhar_com">Emparejar con %1$s</string>

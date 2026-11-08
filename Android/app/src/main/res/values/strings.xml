@@ -33,7 +33,7 @@
     <string name="and_procurar">Search for computers</string>
     <string name="and_nenhum_wifi_1">No computer found. Check that the Kikoia is open on the computer, </string>
     <string name="and_nenhum_wifi_2">that both are on the same Wi-Fi network and that Windows allows the connection (Firewall).</string>
-    <string name="and_bt_rotulo">Bluetooth (paired)</string>
+    <string name="and_bt_rotulo">Bluetooth (Recommended)</string>
     <string name="and_atualizar_lista">Refresh list</string>
     <string name="and_nenhum_bt_1">No paired computer. Pair the phone with the computer in the Android Bluetooth settings </string>
     <string name="and_nenhum_bt_2">and tap «Refresh list».</string>
@@ -42,6 +42,10 @@
     <string name="and_codigo_rotulo">6-digit code</string>
     <string name="and_emparelhar">Pair</string>
     <string name="and_voltar">Back</string>
+    <string name="and_cancelar">Cancel</string>
+    <string name="and_reconectando">Reconnecting…</string>
+    <string name="and_sem_sinal">The computer stopped responding.</string>
+    <string name="and_wifi_aviso">You may need additional settings, such as configuring port forwarding on your router.</string>
     <string name="and_desligar">Disconnect</string>
     <string name="and_aguardar">Waiting for the computer keyboard…</string>
     <string name="and_emparelhar_com">Pair with %1$s</string>

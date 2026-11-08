@@ -28,6 +28,8 @@ MAX_SUGESTOES = 10
 FIM_DE_FRASE = ".!?"
 PONTUACAO = frozenset(".,;:!?")
 TECLAS_QUE_FECHAM_PALAVRA = frozenset({"espaco", "enter", "tab"})
+# Teclas de navegacao que, com Shift, selecionam texto (nome no teclado -> nome no atalho).
+TECLAS_SHIFT_NAVEGACAO = {"seta_esq": "left", "seta_dir": "right", "home": "home", "end": "end"}
 # Tempo maximo entre dois toques na mesma tecla de toque repetido (segundos).
 MULTITOQUE_INTERVALO = 1.2
 
@@ -41,9 +43,11 @@ class Editor:
         ao_atualizar: Callable[[], None] | None = None,
         relogio: Callable[[], float] | None = None,
         ao_falar: Callable[[str], None] | None = None,
+        simbolos_shift: dict[str, str] | None = None,
     ) -> None:
         self._saida = saida
         self._dicionario = dicionario
+        self._simbolos = dict(simbolos_shift or {})
         self._max = max(1, min(max_sugestoes, MAX_SUGESTOES))
         self.ao_atualizar = ao_atualizar or (lambda: None)
         # Voz: recebe o texto a ler. As opcoes decidem quando e chamado.
@@ -201,20 +205,25 @@ class Editor:
             self.ctrl = not self.ctrl
 
     def _combinacao(self, tecla: str) -> None:
-        """Envia Ctrl+tecla. Uma combinacao pode mudar o texto, por isso a palavra em curso e descartada."""
+        """Envia Ctrl+tecla (com Shift, se estiver ativo). Uma combinacao pode mudar o texto,
+        por isso a palavra em curso e descartada.
+        """
+        passo = "ctrl+shift+" if self.shift else "ctrl+"
         self.ctrl = False
+        self.shift = False
         self._ultimo_multi = None
         self._acento = None
         self.palavra = ""
         self._frase = ""
         self._espaco_automatico = False
-        self._saida.enviar_atalho(f"ctrl+{tecla}")
+        self._saida.enviar_atalho(passo + tecla)
         self._atualizar()
 
     def acento(self, nome: str) -> None:
         if nome not in ACENTOS:
             raise ValueError(f"Acento desconhecido: {nome}")
         self.ctrl = False
+        self.shift = False
         self._ultimo_multi = None
         # Dois acentos seguidos: o primeiro sai isolado.
         self._escoar_acento()
@@ -256,6 +265,17 @@ class Editor:
         if self.ctrl:
             self._combinacao(nome)  # ex.: Ctrl + Home, Ctrl + Backspace
             return
+        if self.shift and nome in TECLAS_SHIFT_NAVEGACAO:
+            # Shift + seta/Home/End seleciona o texto; a palavra em curso deixa de ser valida.
+            self.shift = False
+            self._acento = None
+            self.palavra = ""
+            self._espaco_automatico = False
+            self._saida.enviar_atalho("shift+" + TECLAS_SHIFT_NAVEGACAO[nome])
+            self._atualizar()
+            return
+        # Qualquer tecla consome o Shift de um toque (como no teclado do sistema).
+        self.shift = False
         if nome == "backspace":
             # O acento pendente ainda nao foi escrito: apagar atinge o caracter anterior.
             self._acento = None
@@ -332,7 +352,13 @@ class Editor:
 
     # --- internos --------------------------------------------------------
 
+    def simbolo_shift(self, caractere: str) -> str | None:
+        """Simbolo que este caracter escreve com Shift (None se nao tiver)."""
+        return self._simbolos.get(caractere)
+
     def _caractere(self, caractere: str) -> None:
+        if self.shift and not caractere.isalpha():
+            caractere = self._simbolos.get(caractere, caractere)
         if caractere.isalpha():
             if not self.palavra:
                 self._palavra_no_inicio = self.inicio_frase
@@ -361,6 +387,7 @@ class Editor:
             self._saida.escrever(saida)
             return
 
+        self.shift = False
         self._escoar_acento()
         self._fechar_palavra()
         if caractere == " " and self._espaco_automatico:

@@ -11,6 +11,7 @@ import json
 import os
 import re
 import unicodedata
+from dataclasses import replace
 from pathlib import Path
 
 from .layout import EXTENSAO, Layout, LayoutInvalido, Tecla, carregar_layout, validar_layout
@@ -25,7 +26,12 @@ def modelo_vazio(nome: str, idioma: str = "pt-PT") -> dict:
 
 
 def _dict_de_tecla(tecla: Tecla) -> dict:
-    return tecla_dict(tecla.rotulo, tecla.acao.tipo, tecla.acao.valor, tecla.largura)
+    dados = tecla_dict(tecla.rotulo, tecla.acao.tipo, tecla.acao.valor, tecla.largura)
+    if tecla.shift is not None:
+        dados["shift"] = tecla.shift
+    if tecla.idiomas is not None:
+        dados["idiomas"] = sorted(tecla.idiomas)
+    return dados
 
 
 def modelo_de(layout: Layout) -> dict:
@@ -106,6 +112,51 @@ def guardar_layout_em_pasta(modelo: dict, pasta: Path) -> Layout:
     temporario.write_text(json.dumps(limpo, ensure_ascii=False, indent=2), encoding="utf-8")
     os.replace(temporario, destino)
     return layout
+
+
+def gravar_modelo_em_ficheiro(modelo: dict, destino: Path) -> Layout:
+    """Valida e grava o modelo no ficheiro indicado (mantem o nome do ficheiro)."""
+    limpo = _limpo(modelo)
+    layout = validar_layout(limpo)
+    destino = Path(destino)
+    temporario = destino.with_suffix(".tmp")
+    temporario.write_text(json.dumps(limpo, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(temporario, destino)
+    return layout
+
+
+def rotular_comandos(layout: Layout, comandos: dict) -> Layout:
+    """Layout com o nome atual de cada tecla de comando: o nome vem do comando, nao da tecla.
+
+    Assim, renomear um comando atualiza todas as teclas que o usam, sem reescrever os layouts.
+    Um comando que ja nao existe mantem o nome guardado na tecla.
+    """
+    def atual(tecla: Tecla) -> Tecla:
+        if tecla.acao.tipo != "comando":
+            return tecla
+        comando = comandos.get(tecla.acao.valor)
+        if comando is None or comando.rotulo == tecla.rotulo:
+            return tecla
+        return replace(tecla, rotulo=comando.rotulo)
+
+    return replace(layout, linhas=tuple(tuple(atual(tecla) for tecla in linha) for linha in layout.linhas))
+
+
+def usa_comando(layout: Layout, id_: str) -> bool:
+    return any(
+        tecla.acao.tipo == "comando" and tecla.acao.valor == id_
+        for linha in layout.linhas for tecla in linha
+    )
+
+
+def remover_teclas_de_comando(modelo: dict, id_: str) -> int:
+    """Tira do modelo as teclas deste comando. Devolve quantas foram removidas."""
+    removidas = 0
+    for linha in modelo["linhas"]:
+        antes = len(linha)
+        linha[:] = [t for t in linha if not (t["acao"]["tipo"] == "comando" and t["acao"]["valor"] == id_)]
+        removidas += antes - len(linha)
+    return removidas
 
 
 def apagar_layout_em_pasta(nome: str, pasta: Path) -> bool:

@@ -288,5 +288,21 @@
   "tecla.capslock": "Caps Lock",
   "tecla.tab": "Tab",
   "tecla.esc": "Esc",
-  "tecla.delete": "Delete"
+  "tecla.delete": "Delete",
+  "editor.teclas_personalizadas": "Custom keys",
+  "editor.teclas_personalizadas_dica": "Create, edit or delete programs and commands. With a command key selected, this opens that key.",
+  "editor.comando_alterado": "Key “{rotulo}” updated.",
+  "editor.comando_apagado": "Key “{rotulo}” deleted.",
+  "cmd.remover_teclas": "This command key is used in: {lista}. Also remove these keys from those keyboards?",
+  "editor.simbolo_shift": "Symbol with Shift",
+  "editor.simbolo_shift_dica": "optional",
+  "voz.piper_secao": "Speech voice (Linux)",
+  "voz.piper_instalada": "Portuguese voice installed.",
+  "voz.piper_nao_instalada": "Voice not installed. Speak stays unavailable until you download it.",
+  "voz.piper_sem_idioma": "There is no speech voice for this language.",
+  "voz.piper_descarregar": "Download the voice ({mb} MB)",
+  "voz.piper_confirmar": "Download the Portuguese voice (about {mb} MB)?",
+  "voz.piper_ativar": "Voice installed and selected. Press OK to use it.",
+  "gateway.bluetooth_recomendado": "Bluetooth (Recommended)",
+  "gateway.aviso_wifi": "You may need additional settings, such as configuring port forwarding on your router."
 }

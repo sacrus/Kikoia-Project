@@ -8,7 +8,7 @@
 #endif
 
 #define NomeApp "Kikoia"
-#define Versao "0.1.0"
+#define Versao "0.1.1"
 
 [Setup]
 ; Identificador fixo deste produto: nao mudar entre versoes, senao o Windows ve outra aplicacao.
@@ -44,6 +44,7 @@ Name: "frances"; MessagesFile: "compiler:Languages\French.isl"
 
 [Tasks]
 Name: "atalho_ambiente"; Description: "Criar atalho no ambiente de trabalho"; GroupDescription: "Atalhos:"
+Name: "firewall"; Description: "Permitir a ligação Wi-Fi do telemóvel na Firewall do Windows (pede autorização de administrador)"; GroupDescription: "Rede:"
 
 [Files]
 Source: "{#Origem}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -61,6 +62,28 @@ Filename: "{app}\Kikoia.exe"; Description: "Abrir o Kikoia"; Flags: nowait posti
 [Code]
 const
   CHAVE_ARRANQUE = 'Software\Microsoft\Windows\CurrentVersion\Run';
+
+procedure CriarRegraFirewall();
+var
+  ResultCode: Integer;
+  Comando: String;
+begin
+  // Uma so execucao elevada (um pedido de autorizacao): apaga a regra antiga e cria a nova.
+  Comando := '/c netsh advfirewall firewall delete rule name="Kikoia" >nul & ' +
+             'netsh advfirewall firewall add rule name="Kikoia" dir=in action=allow ' +
+             'program="' + ExpandConstant('{app}\Kikoia.exe') + '" enable=yes profile=any';
+  if (not ShellExec('runas', 'cmd.exe', Comando, '', SW_HIDE, ewWaitUntilTerminated, ResultCode))
+     or (ResultCode <> 0) then
+    MsgBox('Não foi possível criar a regra na Firewall. Se o telemóvel não ligar por Wi-Fi, ' +
+           'quando o Windows perguntar, permita o Kikoia nas redes privadas e públicas.',
+           mbInformation, MB_OK);
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if (CurStep = ssPostInstall) and WizardIsTaskSelected('firewall') then
+    CriarRegraFirewall();
+end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin

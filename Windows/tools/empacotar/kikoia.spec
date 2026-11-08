@@ -15,6 +15,9 @@ pacotes = ["vosk", "sounddevice"]
 if sys.platform == "win32":
     # Bluetooth no Windows: os modulos winrt sao carregados dinamicamente e o PyInstaller nao os ve.
     pacotes.append("winrt")
+if sys.platform.startswith("linux"):
+    # Voz de Falar no Linux: o Piper leva dados (espeak-ng) e bibliotecas nativas.
+    pacotes.append("piper")
 for pacote in pacotes:
     dados, libs, ocultos = collect_all(pacote)
     datas += dados
@@ -27,7 +30,8 @@ a = Analysis(
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
-    excludes=["tkinter", "pytest"],
+    # O Piper so existe no Linux: no Windows nao entra no pacote (o SAPI faz a voz).
+    excludes=["tkinter", "pytest"] + (["piper", "onnxruntime"] if sys.platform == "win32" else []),
     noarchive=False,
 )
 pyz = PYZ(a.pure)

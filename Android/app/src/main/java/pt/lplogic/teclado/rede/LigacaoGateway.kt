@@ -28,6 +28,10 @@ interface OuvinteGateway {
 
 private enum class Passo { DESAFIO, CONFIANCA, CONFIRMACAO, CONFIRMACAO_CONFIANCA, ATIVO }
 
+/** Heartbeat (ver LigacaoGateway.iniciarVigia): ping a cada 15 s, perda apos 45 s sem sinal. */
+internal const val INTERVALO_PING_MS = 15_000L
+internal const val TEMPO_SEM_SINAL_MS = 45_000L
+
 /** O computador ja nao conhece este telemovel (ex.: foi reinstalado). */
 private class PerdeuConfianca : Exception("sem confianca")
 
@@ -49,6 +53,7 @@ class LigacaoGateway(
     private var sessao: Sessao? = null
     private var passo = Passo.DESAFIO
     private var fechada = false
+    @Volatile private var ultimoSinal = 0L
 
     val ativa: Boolean
         get() = synchronized(this) { sessao != null && !fechada }
@@ -75,6 +80,7 @@ class LigacaoGateway(
     @Synchronized
     fun aoReceber(bytes: ByteArray) {
         if (fechada) return
+        ultimoSinal = System.currentTimeMillis()
         try {
             tratar(bytes)
         } catch (erro: PerdeuConfianca) {
@@ -123,6 +129,45 @@ class LigacaoGateway(
         return t.enviar(s.enviar(tipo, Protocolo.novoId(), corpo))
     }
 
+    /**
+     * Heartbeat: ping ao computador a cada INTERVALO_PING_MS. Sem nenhuma mensagem do computador
+     * durante TEMPO_SEM_SINAL_MS, a ligacao e dada como perdida (ex.: Bluetooth que caiu sem aviso).
+     */
+    private fun iniciarVigia() {
+        ultimoSinal = System.currentTimeMillis()
+        Thread(Runnable {
+            while (true) {
+                try {
+                    Thread.sleep(INTERVALO_PING_MS)
+                } catch (_: InterruptedException) {
+                    return@Runnable
+                }
+                if (!vigiaAtiva()) return@Runnable
+                if (System.currentTimeMillis() - ultimoSinal > TEMPO_SEM_SINAL_MS) {
+                    perdeuSinal()
+                    return@Runnable
+                }
+                enviarPing()
+            }
+        }, "gateway-vigia").apply { isDaemon = true }.start()
+    }
+
+    @Synchronized
+    private fun vigiaAtiva(): Boolean = !fechada && sessao != null
+
+    @Synchronized
+    private fun enviarPing() {
+        enviarMensagem("ping", emptyMap())
+    }
+
+    @Synchronized
+    private fun perdeuSinal() {
+        if (fechada) return
+        fechada = true
+        transporte?.fechar()
+        ouvinte.aoFechar(recurso(R.string.and_sem_sinal))
+    }
+
     private fun tratar(bytes: ByteArray) {
         val t = transporte ?: return
         when (passo) {
@@ -150,6 +195,7 @@ class LigacaoGateway(
                 require(mensagem["valor"] == Protocolo.hmacHex(segredo, "servidor:${nonce!!}")) { "computador não confirmado" }
                 sessao = Sessao(Protocolo.chaveSessao(chave!!))
                 passo = Passo.ATIVO
+                iniciarVigia()
                 ouvinte.aoEstado(recurso(R.string.and_ligado_a, nomeComputador))
                 ouvinte.aoLigar()
             }
@@ -170,6 +216,7 @@ class LigacaoGateway(
                 require(mensagem["valor"] == Protocolo.hmacHex(chaveSpake, "servidor")) { "código errado" }
                 sessao = Sessao(Protocolo.chaveSessao(chaveSpake))
                 passo = Passo.ATIVO
+                iniciarVigia()
                 ouvinte.aoConfiar(
                     Confianca(
                         id = Protocolo.hmacHex(chaveSpake, "gateway-id").take(32),
@@ -182,6 +229,7 @@ class LigacaoGateway(
             Passo.ATIVO -> {
                 val mensagem = sessao!!.receber(bytes)
                 when (mensagem["tipo"]) {
+                    "ping" -> enviarMensagem("pong", emptyMap())
                     "teclados" -> {
                         val lista = mensagem["layouts"] as? List<*> ?: return
                         lista.filterIsInstance<Map<*, *>>().firstOrNull()?.let { ouvinte.aoTeclado(teclado(it)) }

@@ -62,13 +62,17 @@ class DialogoGateway(QDialog):
         self._botao_codigo = QPushButton(t("gateway.gerar_codigo"))
         self._botao_codigo.clicked.connect(self._novo_codigo)
 
+        # Bluetooth primeiro: e o caminho recomendado. Wi-Fi so como alternativa.
+        self._aviso_wifi = QLabel(t("gateway.aviso_wifi"))
+        self._aviso_wifi.setWordWrap(True)
         self._transporte = QComboBox()
-        self._transporte.addItem(t("gateway.wifi"), "wifi")
         motivo_bt = controlador.bluetooth_disponivel()
-        self._transporte.addItem(t("gateway.bluetooth"), "bluetooth")
+        self._transporte.addItem(t("gateway.bluetooth_recomendado"), "bluetooth")
+        self._transporte.addItem(t("gateway.wifi"), "wifi")
         if motivo_bt:
-            self._transporte.setItemData(1, motivo_bt, Qt.ItemDataRole.ToolTipRole)
-            self._transporte.model().item(1).setEnabled(False)
+            self._transporte.setItemData(0, motivo_bt, Qt.ItemDataRole.ToolTipRole)
+            self._transporte.model().item(0).setEnabled(False)
+            self._transporte.setCurrentIndex(1)
         self._transporte.currentIndexChanged.connect(lambda _=0: self._atualizar())
 
         self._porta = QSpinBox()
@@ -104,6 +108,7 @@ class DialogoGateway(QDialog):
         raiz.addWidget(self._tempo)
         raiz.addLayout(botoes)
         raiz.addLayout(linha_porta)
+        raiz.addWidget(self._aviso_wifi)
         raiz.addWidget(ajuda)
 
         self._timer = QTimer(self)
@@ -190,6 +195,7 @@ class DialogoGateway(QDialog):
     def _atualizar(self) -> None:
         e = self._obter_estado()
         wifi = self._transporte.currentData() == "wifi"
+        self._aviso_wifi.setVisible(wifi)
         self._porta.setEnabled(wifi and not e["ativo"])
         self._transporte.setEnabled(not e["ativo"])
         if not e["ativo"]:
