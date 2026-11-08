@@ -288,5 +288,10 @@
   "tecla.capslock": "Bloq Mayús",
   "tecla.tab": "Tab",
   "tecla.esc": "Esc",
-  "tecla.delete": "Supr"
+  "tecla.delete": "Supr",
+  "editor.teclas_personalizadas": "Teclas personalizadas",
+  "editor.teclas_personalizadas_dica": "Crear, cambiar o borrar programas y comandos. Con una tecla de comando seleccionada, abre esa tecla.",
+  "editor.comando_alterado": "Tecla «{rotulo}» modificada.",
+  "editor.comando_apagado": "Tecla «{rotulo}» borrada.",
+  "cmd.remover_teclas": "Esta tecla de comando está en: {lista}. ¿Quitar también esas teclas de los teclados?"
 }

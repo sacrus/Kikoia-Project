@@ -288,5 +288,10 @@
   "tecla.capslock": "Verr Maj",
   "tecla.tab": "Tab",
   "tecla.esc": "Échap",
-  "tecla.delete": "Suppr"
+  "tecla.delete": "Suppr",
+  "editor.teclas_personalizadas": "Touches personnalisées",
+  "editor.teclas_personalizadas_dica": "Créer, modifier ou supprimer des programmes et commandes. Si une touche de commande est sélectionnée, ouvre cette touche.",
+  "editor.comando_alterado": "Touche « {rotulo} » modifiée.",
+  "editor.comando_apagado": "Touche « {rotulo} » supprimée.",
+  "cmd.remover_teclas": "Cette touche de commande est dans : {lista}. Retirer aussi ces touches des claviers ?"
 }

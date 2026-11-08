@@ -288,5 +288,10 @@
   "tecla.capslock": "Caps Lock",
   "tecla.tab": "Tab",
   "tecla.esc": "Esc",
-  "tecla.delete": "Delete"
+  "tecla.delete": "Delete",
+  "editor.teclas_personalizadas": "Teclas personalizadas",
+  "editor.teclas_personalizadas_dica": "Criar, alterar ou apagar programas e comandos. Com uma tecla de comando selecionada, abre essa tecla.",
+  "editor.comando_alterado": "Tecla «{rotulo}» alterada.",
+  "editor.comando_apagado": "Tecla «{rotulo}» apagada.",
+  "cmd.remover_teclas": "Esta tecla de comando está em: {lista}. Também remover essas teclas dos teclados?"
 }

@@ -288,5 +288,10 @@
   "tecla.capslock": "Caps Lock",
   "tecla.tab": "Tab",
   "tecla.esc": "Esc",
-  "tecla.delete": "Delete"
+  "tecla.delete": "Delete",
+  "editor.teclas_personalizadas": "Custom keys",
+  "editor.teclas_personalizadas_dica": "Create, edit or delete programs and commands. With a command key selected, this opens that key.",
+  "editor.comando_alterado": "Key “{rotulo}” updated.",
+  "editor.comando_apagado": "Key “{rotulo}” deleted.",
+  "cmd.remover_teclas": "This command key is used in: {lista}. Also remove these keys from those keyboards?"
 }

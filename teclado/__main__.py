@@ -34,7 +34,6 @@ from teclado.core.voz import (
 from teclado.ui.definicoes import (
     ACAO_EDITAR,
     ACAO_ATUALIZACOES,
-    ACAO_COMANDOS,
     ACAO_FISICO,
     ACAO_GATEWAY,
     ACAO_IA,
@@ -51,14 +50,13 @@ from teclado.ui.janela import JanelaTeclado
 from teclado.ui.supervisao import DialogoSupervisao
 from teclado.ui.voz_opcoes import DialogoOpcoesVoz
 from teclado.core.comandos import Comando, ComandoErro
-from teclado.ui.comandos_ui import DialogoComandos
 from teclado.gateway.acoes import aplicar_acao_remota
 from teclado.core import arranque, atualizacao, idiomas
 from teclado.ui.atualizacoes import DialogoAtualizacoes
 from teclado.ui.instancia import ServidorInstancia, ja_em_execucao
 from teclado.gateway.confianca import RepositorioConfianca, dispositivos_emparelhados, pode_ser_emparelhado
 from teclado.gateway.controlador import ControladorGateway
-from teclado.core.layout_editor import modelo_de
+from teclado.core.layout_editor import modelo_de, rotular_comandos
 from teclado.ui.gateway_opcoes import DialogoGateway
 
 
@@ -268,14 +266,18 @@ def main() -> int:
 
     editor.ligar_leitura_selecao(ler_selecao)
 
+    def com_nomes_atuais(layout):
+        # Nome de cada tecla de comando vem do comando (ver rotular_comandos).
+        return rotular_comandos(layout, controlador.comandos)
+
     def sincronizar_telemovel() -> None:
         # O telemovel mostra sempre o teclado ativo no PC.
-        gateway.atualizar_teclado(modelo_de(controlador.layout))
+        gateway.atualizar_teclado(modelo_de(com_nomes_atuais(controlador.layout)))
 
     def navegar(nome: str) -> None:
         novo = controlador.voltar_teclado() if nome == NAVEGAR_ANTERIOR else controlador.navegar_para(nome)
         if novo is not None:
-            janela.montar(novo)
+            janela.montar(com_nomes_atuais(novo))
             sincronizar_telemovel()
 
     # --- acoes das definicoes (correm com o teclado recolhido) -----------
@@ -316,9 +318,11 @@ def main() -> int:
             apagar=controlador.apagar_layout,
             comandos=controlador.comandos,
             guardar_comando=controlador.guardar_comando,
+            apagar_comando=controlador.apagar_comando,
+            teclados_com_comando=controlador.teclados_com_comando,
         )
         executar_dialogo(dialogo)
-        janela.montar(controlador.layout)
+        janela.montar(com_nomes_atuais(controlador.layout))
         sincronizar_telemovel()
 
     def personalizar_tema() -> None:
@@ -349,7 +353,7 @@ def main() -> int:
         if escolhas["layout"] != controlador.layout.nome:
             novo = controlador.mudar_layout(escolhas["layout"])
             if novo is not None:
-                janela.montar(novo)
+                janela.montar(com_nomes_atuais(novo))
                 sincronizar_telemovel()
         if escolhas["tema"] != controlador.tema.nome:
             novo = controlador.mudar_tema(escolhas["tema"])
@@ -391,8 +395,6 @@ def main() -> int:
             abrir_gateway()
         elif escolhas["acao"] == ACAO_ATUALIZACOES:
             executar_dialogo(DialogoAtualizacoes(None))
-        elif escolhas["acao"] == ACAO_COMANDOS:
-            abrir_comandos()
 
     def opcoes_fisico() -> None:
         prefs = controlador.preferencias_fisico()
@@ -436,7 +438,7 @@ def main() -> int:
                 idiomas.t("geral.nao_aprovado"),
             )
             return
-        janela.montar(guardado)
+        janela.montar(com_nomes_atuais(guardado))
         sincronizar_telemovel()
 
     def abrir_definicoes() -> None:
@@ -538,12 +540,6 @@ def main() -> int:
             logging.error("Tecla personalizada falhou: %s", erro)
             notificar(str(erro))
 
-    def abrir_comandos() -> None:
-        dialogo = DialogoComandos(
-            None, controlador.comandos, controlador.guardar_comando, controlador.apagar_comando,
-        )
-        executar_dialogo(dialogo)
-
     def tratar_remoto(msg: dict) -> None:
         # Chega ja na thread do Qt (sinal). Navegacao e sugestoes mudam o estado do PC.
         if msg["tipo"] == "interruptor":
@@ -571,7 +567,7 @@ def main() -> int:
         ao_acao=ponte_gw.acao.emit,
         ao_ligar=ponte_gw.ligado.emit,
         ao_desligar=ponte_gw.desligado.emit,
-        fornecer_teclado=lambda: modelo_de(controlador.layout),
+        fornecer_teclado=lambda: modelo_de(com_nomes_atuais(controlador.layout)),
         fornecer_sugestoes=lambda: list(editor.sugestoes),
         fornecer_interruptores=lambda: estado_interruptores(),
         confianca=confianca,

@@ -24,4 +24,4 @@ Remove-Item -Force (Join-Path $saida "Kikoia-*-Windows-Setup.exe") -ErrorAction 
 & $iscc "/DOrigem=$(Join-Path $dist 'Kikoia')" "/DSaida=$saida" (Join-Path $PSScriptRoot "kikoia.iss")
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup falhou" }
 
-Write-Output "Instalador: $(Join-Path $saida 'Kikoia-0.1.0-Windows-Setup.exe')"
+Write-Output "Instalador: $(Join-Path $saida 'Kikoia-0.1.1-Windows-Setup.exe')"

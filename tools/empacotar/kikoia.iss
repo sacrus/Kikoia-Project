@@ -8,7 +8,7 @@
 #endif
 
 #define NomeApp "Kikoia"
-#define Versao "0.1.0"
+#define Versao "0.1.1"
 
 [Setup]
 ; Identificador fixo deste produto: nao mudar entre versoes, senao o Windows ve outra aplicacao.

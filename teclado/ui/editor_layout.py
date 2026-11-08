@@ -38,6 +38,7 @@ from teclado.core.acentos import ACENTOS
 from teclado.core.layout import MODIFICADORES, Layout, LayoutInvalido, validar_tecla
 from teclado.core.layout_editor import (
     adicionar_linha,
+    remover_teclas_de_comando,
     adicionar_tecla,
     modelo_de,
     modelo_vazio,
@@ -48,7 +49,7 @@ from teclado.core.layout_editor import (
 )
 from teclado.core.rotulos import rotulo_tecla
 from teclado.core.saida import ACOES, TECLAS_ESPECIAIS
-from teclado.ui.comandos_ui import DialogoComando
+from teclado.ui.comandos_ui import DialogoComando, DialogoComandos
 from teclado.ui.dialogos import executar_dialogo
 
 def tipos_tecla() -> tuple[tuple[str, str], ...]:
@@ -259,6 +260,8 @@ class DialogoEditorLayout(QDialog):
         apagar: Callable[[str], bool],
         comandos: dict | None = None,
         guardar_comando: Callable[[str | None, str, str], object] | None = None,
+        apagar_comando: Callable[[str, bool], bool] | None = None,
+        teclados_com_comando: Callable[[str], list[str]] | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(t("editor.titulo"))
@@ -347,6 +350,8 @@ class DialogoEditorLayout(QDialog):
         self._grade_paleta.setSpacing(4)
         self._comandos = comandos if comandos is not None else {}
         self._guardar_comando = guardar_comando
+        self._apagar_comando = apagar_comando
+        self._teclados_com_comando = teclados_com_comando
         self._atalhos = atalhos_de(layouts, excluir=self._modelo["nome"])
         self._construir_paleta()
         area_lista = QScrollArea()
@@ -361,10 +366,14 @@ class DialogoEditorLayout(QDialog):
         botao_programa = QPushButton(t("editor.tecla_programa"))
         botao_programa.setToolTip(t("editor.tecla_programa_dica"))
         botao_programa.clicked.connect(self._nova_tecla_programa)
+        botao_personalizadas = QPushButton(t("editor.teclas_personalizadas"))
+        botao_personalizadas.setToolTip(t("editor.teclas_personalizadas_dica"))
+        botao_personalizadas.clicked.connect(self._teclas_personalizadas)
         extras = QHBoxLayout()
         extras.addWidget(botao_outro)
         extras.addWidget(botao_avancada)
         extras.addWidget(botao_programa)
+        extras.addWidget(botao_personalizadas)
         extras.addStretch(1)
 
         # --- estado e rodape ----------------------------------------------
@@ -430,7 +439,7 @@ class DialogoEditorLayout(QDialog):
         horizontal.addWidget(etiqueta)
 
         for p, tecla in enumerate(linha):
-            botao = QPushButton(tecla["rotulo"])
+            botao = QPushButton(self._rotulo_visivel(tecla))
             botao.setCheckable(True)
             botao.setChecked(self._cel == (r, p))
             botao.setMinimumHeight(52)
@@ -489,7 +498,7 @@ class DialogoEditorLayout(QDialog):
         if tecla is None:
             self._info.setText(t("editor.nenhuma"))
             return
-        self._info.setText(t("editor.selecionada", rotulo=tecla["rotulo"], tipo=rotulo_tipo()[tecla["acao"]["tipo"]]))
+        self._info.setText(t("editor.selecionada", rotulo=self._rotulo_visivel(tecla), tipo=rotulo_tipo()[tecla["acao"]["tipo"]]))
         self._a_atualizar = True
         self._spin_largura.setValue(float(tecla.get("largura", 1.0)))
         self._a_atualizar = False
@@ -547,11 +556,99 @@ class DialogoEditorLayout(QDialog):
         tecla = self._tecla_selecionada()
         if tecla is None:
             return
+        id_ = self._comando_da_tecla(tecla)
+        if id_ is not None:
+            self._editar_comando(id_)
+            return
         dialogo = DialogoTecla(self, tecla)
         if dialogo.exec() != QDialog.DialogCode.Accepted:
             return
         r, p = self._cel
         self._modelo["linhas"][r][p] = dialogo.resultado()
+        self._refrescar()
+
+    # --- teclas de comando (programas do PC) ----------------------------
+
+    def _comando_da_tecla(self, tecla: dict) -> str | None:
+        """Identificador do comando, se a tecla executar um comando guardado."""
+        if tecla["acao"]["tipo"] == "comando" and tecla["acao"]["valor"] in self._comandos:
+            return tecla["acao"]["valor"]
+        return None
+
+    def _rotulo_visivel(self, tecla: dict) -> str:
+        id_ = self._comando_da_tecla(tecla)
+        return self._comandos[id_].rotulo if id_ is not None else tecla["rotulo"]
+
+    def _modelo_usa_comando(self, id_: str) -> bool:
+        return any(
+            tecla["acao"]["tipo"] == "comando" and tecla["acao"]["valor"] == id_
+            for linha in self._modelo["linhas"] for tecla in linha
+        )
+
+    def _teclas_personalizadas(self) -> None:
+        """Com uma tecla de comando selecionada, abre-a; senao, abre a lista de teclas de programa."""
+        tecla = self._tecla_selecionada()
+        id_ = self._comando_da_tecla(tecla) if tecla is not None else None
+        if id_ is not None:
+            self._editar_comando(id_)
+            return
+        dialogo = DialogoComandos(self, self._comandos, self._guardar_comando_ui, self._apagar_comando_ui)
+        executar_dialogo(dialogo)
+        self._sincronizar_comandos()
+
+    def _guardar_comando_ui(self, id_: str | None, rotulo: str, comando: str):
+        if self._guardar_comando is None:
+            return None
+        return self._guardar_comando(id_, rotulo, comando)
+
+    def _editar_comando(self, id_: str) -> None:
+        atual = self._comandos.get(id_)
+        if atual is None:
+            return
+        dialogo = DialogoComando(self, atual, ao_apagar=lambda: self._apagar_comando_ui(id_))
+        if executar_dialogo(dialogo) != QDialog.DialogCode.Accepted or dialogo.apagado:
+            self._sincronizar_comandos()
+            return
+        rotulo, comando = dialogo.resultado()
+        novo = self._guardar_comando_ui(id_, rotulo, comando)
+        if novo is None:
+            QMessageBox.information(self, t("geral.nao_guardado"), t("geral.nao_aprovado"))
+            return
+        self._sincronizar_comandos()
+        self._dizer(t("editor.comando_alterado", rotulo=novo.rotulo))
+
+    def _apagar_comando_ui(self, id_: str) -> bool:
+        """Apaga o comando. Se estiver em teclados, pergunta se as teclas tambem saem."""
+        if self._apagar_comando is None or id_ not in self._comandos:
+            return False
+        nome = self._comandos[id_].rotulo
+        nomes = list(self._teclados_com_comando(id_)) if self._teclados_com_comando else []
+        if self._modelo_usa_comando(id_) and self._modelo["nome"] not in nomes:
+            nomes.append(self._modelo["nome"])
+        remover = False
+        if nomes:
+            resposta = QMessageBox.question(
+                self, t("geral.apagar"), t("cmd.remover_teclas", lista=", ".join(nomes)),
+            )
+            remover = resposta == QMessageBox.StandardButton.Yes
+        if not self._apagar_comando(id_, remover):
+            QMessageBox.information(self, t("geral.nao_guardado"), t("geral.nao_aprovado"))
+            return False
+        if remover:
+            remover_teclas_de_comando(self._modelo, id_)
+        self._comandos.pop(id_, None)
+        self._sincronizar_comandos()
+        self._dizer(t("editor.comando_apagado", rotulo=nome))
+        return True
+
+    def _sincronizar_comandos(self) -> None:
+        """Atualiza o nome das teclas de comando e a palete, depois de criar, alterar ou apagar."""
+        for linha in self._modelo["linhas"]:
+            for tecla in linha:
+                id_ = self._comando_da_tecla(tecla)
+                if id_ is not None:
+                    tecla["rotulo"] = self._comandos[id_].rotulo
+        self._construir_paleta()
         self._refrescar()
 
     def _apagar_selecionada(self) -> None:
