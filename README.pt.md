@@ -1,5 +1,7 @@
 [English](README.md) | **Português**
 
+![Kikoia Logo](Screenshots/Logo.png)
+
 # Kikoia Project - Teclado virtual adaptativo
 
 O Kikoia é um teclado virtual adaptativo, que permite personalizar o teclado em função das necessidades do utilizador.
