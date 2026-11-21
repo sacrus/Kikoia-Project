@@ -1,5 +1,7 @@
 **English** | [Português](README.pt.md)
 
+![Kikoia Logo](Screenshots/Logo.png)
+
 # Kikoia Project - Adaptive virtual keyboard
 
 Kikoia is an adaptive virtual keyboard that lets you customize the keyboard to each user's needs.
