@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 
 from teclado.core import modelos, voz_piper
 from teclado.core.idiomas import t
+from teclado.ui.estilo_dialogos import aplicar_estilo_dialogo, criar_cabecalho_dialogo
 
 
 class _Sinal(QObject):
@@ -76,7 +77,11 @@ class DialogoOpcoesVoz(QDialog):
         caixa.rejected.connect(self.reject)
 
         raiz = QVBoxLayout(self)
+        raiz.setContentsMargins(18, 16, 18, 16)
+        raiz.setSpacing(10)
+        raiz.addLayout(criar_cabecalho_dialogo(t("voz.titulo"), icone="voz"))
         raiz.addWidget(QLabel(t("voz.o_que_e_lido")))
+        aplicar_estilo_dialogo(self, cor_destaque="#D97706")
         raiz.addWidget(self._ler_palavra)
         raiz.addWidget(self._ler_frase)
         raiz.addWidget(self._ler_sugestao)

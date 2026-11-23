@@ -2,6 +2,8 @@
 
 Teclado virtual para Windows e Linux, pensado para acessibilidade: escrita por clique, sugestões de palavras, voz, teclados configuráveis e controlo remoto a partir de um telemóvel Android.
 
+> **Créditos e licenças:** [CREDITOS.md](CREDITOS.md) lista as ferramentas externas usadas, quem as fez e as obrigações ao distribuir.
+
 ## Estado atual (versão 0.1.1)
 
 - **Windows:** completo e testado no PC principal.
@@ -112,6 +114,14 @@ Se nenhum telemóvel se ligar nesses 5 minutos, o PC deixa de escutar.
 - **Supervisão:** o código do adulto protege apenas configurações (layout, tema, definições, teclas personalizadas, arranque e supervisão). A aprendizagem de palavras nunca é bloqueada.
 - **Dados de voz e dicionário:** são processados localmente. A criação de teclados com IA é o único recurso que usa a internet. Os modelos de voz são descarregados só quando os pedes.
 
+## Recomendações para pais e educadores
+
+- **Limitação atual da supervisão:** o código de supervisão e as definições protegidas ficam na pasta do próprio utilizador do sistema. Quem entra nessa conta consegue alterá-las. Até as guardarmos numa pasta protegida, a supervisão dissuade, mas não impede uma criança determinada.
+- **Conta separada para a criança:** usa uma conta de utilizador sem permissões de administrador para a criança, e uma conta de administrador para o adulto. Assim a criança não consegue instalar programas para todo o sistema.
+- **Não partilhes os ficheiros de segredos:** `confianca.json` (ligações com telemóveis) e o ficheiro de supervisão não devem ser enviados a ninguém nem publicados.
+- **Código de supervisão próprio:** não uses o mesmo código da conta de email ou da conta Microsoft.
+- **Telemóvel:** usa o Bluetooth como transporte. O Wi-Fi só em redes de confiança, porque a ligação não é cifrada (ver a secção Segurança e privacidade).
+
 ## Atualizações
 
 - Ao arrancar, o teclado verifica em segundo plano se há versões novas do próprio teclado e das dependências Python, e mostra um aviso na área de notificações. Nunca instala nada sem confirmação.
@@ -160,5 +170,6 @@ tools/          scripts de configuração, empacotamento e geração de dados
 
 ## Licenças
 
-- O código do projeto tem a sua própria licença.
+- O código do projeto tem a sua própria licença (a definir antes da publicação).
+- Lista completa das ferramentas externas, com licenças e obrigações ao distribuir: [CREDITOS.md](CREDITOS.md).
 - O dicionário `data/languages/pt-PT/lexico.tsv` é derivado de FrequencyWords (CC-BY-SA-4.0) e Hunspell pt_PT. Ver `data/languages/LICENCAS.md`.

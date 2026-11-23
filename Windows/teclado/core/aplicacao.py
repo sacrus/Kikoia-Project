@@ -7,12 +7,15 @@ politica de supervisao e, se necessario, pede o codigo do adulto.
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 
 from ..gateway.servidor import PORTA_POR_OMISSAO
 from . import arranque, idiomas
 from .comandos import Comando, ComandoErro, carregar, executar, gravar, novo_id, validar
-from .layout import EXTENSAO, Layout, LayoutInvalido, carregar_layout, descobrir_layouts
+from .layout import EXTENSAO, Acao, Layout, LayoutInvalido, Tecla, carregar_layout, descobrir_layouts
+from .layout_quadro import FERRAMENTAS, FERRAMENTAS_DESENHO, NOME_RAIZ, construir_layouts
+from .toque import MODO_NORMAL, MODO_QUADRO_CLIQUE, MODO_QUADRO_DESENHO
 from .layout_editor import (
     apagar_layout_em_pasta,
     gravar_modelo_em_ficheiro,
@@ -27,8 +30,10 @@ from .politica import PedidoAprovacaoNecessario, aprovar, executar_acao
 from .seguranca import gerar_hash_pin
 from .saida import Saida
 from .tema import Tema, cor_texto_para, descobrir_temas, guardar_tema
+from .toque import validar_preferencias
 
 TENTATIVAS_PIN = 3
+ROTULO_QUADRO = "Quadro"
 LAYOUT_POR_OMISSAO = "QWERTY"
 TEMA_POR_OMISSAO = "Claro"
 NOME_TEMA_PERSONALIZADO = "Personalizado"
@@ -70,6 +75,12 @@ class Aplicacao:
         self.comandos: dict[str, Comando] = carregar(self._pasta_comandos) if self._pasta_comandos else {}
 
         self._historico: list[str] = []
+        # Quadro Interativo: teclado do utilizador guardado enquanto o Quadro esta ativo.
+        self._base_quadro: Layout | None = None
+        self._layouts_quadro: dict[str, Layout] = {}
+        self._catalogo_quadro: dict = {}
+        self._idioma_quadro = "pt-PT"
+        self._estado_quadro: dict | None = None
         self.layouts: dict[str, Layout] = descobrir_layouts(pastas_layouts)
         self.temas: dict[str, Tema] = descobrir_temas(pastas_temas)
         if not self.layouts or not self.temas:
@@ -114,18 +125,34 @@ class Aplicacao:
     # --- layouts ---------------------------------------------------------
 
     def mudar_layout(self, nome: str) -> Layout | None:
+        if nome not in self.layouts or nome in self._layouts_quadro:
+            return None
         novo = self.layouts[nome]
 
         def aplicar() -> None:
-            self.layout = novo
+            # Com o Quadro ativo, o novo teclado passa a ser o do utilizador (o que volta ao sair do Quadro).
+            if self._base_quadro is not None:
+                self._base_quadro = novo
+            else:
+                self.layout = novo
             self.perfil.preferencias["layout"] = nome
             self.repo.guardar(self.perfil)
 
-        return novo if self._com_aprovacao("alterar_layout", aplicar) else None
+        if not self._com_aprovacao("alterar_layout", aplicar):
+            return None
+        return self.layout if self.no_quadro() else novo
+
+    def layouts_do_utilizador(self) -> dict[str, Layout]:
+        """Os teclados que o utilizador escolhe (sem os teclados gerados do Quadro)."""
+        return {nome: layout for nome, layout in self.layouts.items() if nome not in self._layouts_quadro}
+
+    def layout_base(self) -> Layout:
+        """O teclado do utilizador, mesmo com o Quadro ativo."""
+        return self._base_quadro if self._base_quadro is not None else self.layout
 
     def proximo_layout(self) -> Layout | None:
-        nomes = list(self.layouts)
-        indice = nomes.index(self.layout.nome)
+        nomes = list(self.layouts_do_utilizador())
+        indice = nomes.index(self.layout_base().nome)
         return self.mudar_layout(nomes[(indice + 1) % len(nomes)])
 
     def navegar_para(self, nome: str) -> Layout | None:
@@ -138,7 +165,7 @@ class Aplicacao:
             return None
         if nome != self.layout.nome:
             self._historico.append(self.layout.nome)
-            self.layout = self.layouts[nome]
+            self.layout = self._com_tecla_quadro(self.layouts[nome])
         return self.layout
 
     def voltar_teclado(self) -> Layout | None:
@@ -146,9 +173,87 @@ class Aplicacao:
         while self._historico:
             nome = self._historico.pop()
             if nome in self.layouts:
-                self.layout = self.layouts[nome]
+                self.layout = self._com_tecla_quadro(self.layouts[nome])
                 return self.layout
         return None
+
+    # --- Quadro Interativo ---------------------------------------------
+
+    def no_quadro(self) -> bool:
+        """True enquanto o teclado do Quadro esta ativo (o Quadro e a janela em foco)."""
+        return self._base_quadro is not None
+
+    def entrar_quadro(self, catalogo: dict, idioma: str, estado: dict | None = None) -> Layout:
+        """Ativa o teclado do Quadro. O teclado do utilizador fica guardado e volta ao sair."""
+        if self._base_quadro is None:
+            self._base_quadro = self.layout
+        self._catalogo_quadro = catalogo
+        self._idioma_quadro = idioma
+        self._estado_quadro = estado
+        self._reconstruir_quadro()
+        self.layout = self._layouts_quadro[NOME_RAIZ]
+        return self.layout
+
+    def atualizar_estado_quadro(self, estado: dict | None) -> bool:
+        """Recebe o estado atual do Quadro (ex.: se ha algo para desfazer). Devolve True se o teclado mudou."""
+        if not self.no_quadro() or estado == self._estado_quadro:
+            return False
+        self._estado_quadro = estado
+        self._reconstruir_quadro()
+        # O teclado ativo tem de passar a ser a versao nova (senao a janela volta a mostrar as teclas antigas).
+        if self.layout.nome in self._layouts_quadro:
+            self.layout = self._layouts_quadro[self.layout.nome]
+        else:
+            self.layout = self._layouts_quadro[NOME_RAIZ]
+        return True
+
+    def _reconstruir_quadro(self) -> None:
+        for nome in self._layouts_quadro:
+            self.layouts.pop(nome, None)
+        self._layouts_quadro = construir_layouts(self._catalogo_quadro, self._idioma_quadro, self._estado_quadro)
+        self.layouts.update(self._layouts_quadro)
+
+    def modo_touchpad(self) -> str:
+        """Modo do touchpad: normal fora do Quadro; no Quadro depende da ferramenta ativa."""
+        if not self.no_quadro():
+            return MODO_NORMAL
+        estado = self._estado_quadro or {}
+        ativa = next((f for f in FERRAMENTAS if estado.get(f, {}).get("ativa")), None)
+        return MODO_QUADRO_DESENHO if ativa in FERRAMENTAS_DESENHO else MODO_QUADRO_CLIQUE
+
+    def no_teclado_do_quadro(self) -> bool:
+        """True quando o teclado mostra um dos teclados do Quadro (principal ou de uma ferramenta)."""
+        return self.no_quadro() and self.layout.nome in self._layouts_quadro
+
+    def sair_quadro(self) -> Layout | None:
+        """Volta ao teclado que estava ativo antes de o Quadro ficar em foco."""
+        if self._base_quadro is None:
+            return None
+        base = self._base_quadro
+        self._base_quadro = None
+        for nome in self._layouts_quadro:
+            self.layouts.pop(nome, None)
+        self._layouts_quadro = {}
+        self.layout = self.layouts.get(base.nome, base)
+        return self.layout
+
+    def voltar_ao_base_quadro(self) -> Layout | None:
+        """Tecla rapida do Quadro: volta ao teclado do utilizador, sem sair do modo Quadro."""
+        if self._base_quadro is None:
+            return None
+        self.layout = self._com_tecla_quadro(self._base_quadro)
+        return self.layout
+
+    def _com_tecla_quadro(self, layout: Layout) -> Layout:
+        """Enquanto o Quadro esta ativo, os teclados do utilizador ganham a tecla «Quadro»."""
+        if self._base_quadro is None or layout.nome in self._layouts_quadro:
+            return layout
+        if not layout.linhas:
+            return layout
+        # Tecla pequena no canto superior direito (nao ocupa uma linha inteira).
+        tecla = Tecla(rotulo=ROTULO_QUADRO, acao=Acao("navegar", NOME_RAIZ), largura=0.8, icone="quadro")
+        primeira = layout.linhas[0] + (tecla,)
+        return replace(layout, linhas=(primeira,) + layout.linhas[1:])
 
     def guardar_layout(self, modelo: dict) -> Layout | None:
         """Grava um teclado criado/alterado pelo utilizador e passa a usa-lo.
@@ -164,6 +269,7 @@ class Aplicacao:
         def aplicar() -> None:
             guardado = guardar_layout_em_pasta(modelo, self._pasta_layouts_utilizador)
             self.layouts = descobrir_layouts(self._pastas_layouts)
+            self.layouts.update(self._layouts_quadro)
             self.layout = self.layouts[guardado.nome]
             self.perfil.preferencias["layout"] = guardado.nome
             self.repo.guardar(self.perfil)
@@ -182,6 +288,7 @@ class Aplicacao:
             if not apagado["ok"]:
                 return
             self.layouts = descobrir_layouts(self._pastas_layouts)
+            self.layouts.update(self._layouts_quadro)
             if self.layout.nome == nome:
                 # Se existir um modelo do projeto com o mesmo nome, volta a ele; senao usa o predefinido.
                 if nome in self.layouts:
@@ -351,8 +458,25 @@ class Aplicacao:
             remover_teclas_de_comando(modelo, id_)
             gravar_modelo_em_ficheiro(modelo, ficheiro)
         self.layouts = descobrir_layouts(self._pastas_layouts)
+        self.layouts.update(self._layouts_quadro)
         if self.layout.nome in self.layouts:
             self.layout = self.layouts[self.layout.nome]
+
+    def preferencias_toque(self) -> dict:
+        try:
+            return validar_preferencias(self.perfil.preferencias.get("toque") or {})
+        except ValueError:
+            return validar_preferencias({})
+
+    def definir_preferencias_toque(self, prefs: dict) -> bool:
+        """Grava as definicoes do touchpad. ValueError se a combinacao for invalida."""
+        limpas = validar_preferencias(prefs)
+
+        def aplicar() -> None:
+            self.perfil.preferencias["toque"] = limpas
+            self.repo.guardar(self.perfil)
+
+        return self._com_aprovacao("definicoes", aplicar)
 
     def guardar_comandos_em_lote(self, lista: list[Comando]) -> bool:
         pasta = self._exigir_pasta_comandos()

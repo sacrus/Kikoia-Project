@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 from teclado.core import atualizacao
 from teclado.core.atualizacao import Atualizacao, Dependencia
 from teclado.core.idiomas import t
+from teclado.ui.estilo_dialogos import aplicar_estilo_dialogo, criar_cabecalho_dialogo
 
 
 class _Resultado(QObject):
@@ -55,6 +56,7 @@ class DialogoAtualizacoes(QDialog):
         self._tabela.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
 
         self._verificar = QPushButton(t("atualizacoes.verificar"))
+        self._verificar.setProperty("papel", "primario")
         self._verificar.clicked.connect(self._iniciar_verificacao)
         self._atualizar_deps = QPushButton(t("atualizacoes.atualizar_deps"))
         self._atualizar_deps.setEnabled(False)
@@ -67,7 +69,11 @@ class DialogoAtualizacoes(QDialog):
         botoes.addStretch(1)
 
         raiz = QVBoxLayout(self)
+        raiz.setContentsMargins(18, 16, 18, 16)
+        raiz.setSpacing(10)
+        raiz.addLayout(criar_cabecalho_dialogo(t("atualizacoes.titulo"), icone="opcoes"))
         raiz.addWidget(QLabel(f"<b>{t('atualizacoes.teclado')}</b>"))
+        aplicar_estilo_dialogo(self, cor_destaque="#2563EB")
         raiz.addWidget(self._estado_teclado)
         raiz.addWidget(self._abrir)
         # No executavel nao ha dependencias a atualizar: so se mostra a versao do teclado.

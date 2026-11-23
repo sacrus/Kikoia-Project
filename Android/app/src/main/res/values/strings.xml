@@ -43,6 +43,8 @@
     <string name="and_emparelhar">Pair</string>
     <string name="and_voltar">Back</string>
     <string name="and_cancelar">Cancel</string>
+    <string name="and_touchpad">Touchpad</string>
+    <string name="and_voltar_teclado">Keyboard</string>
     <string name="and_reconectando">Reconnecting…</string>
     <string name="and_sem_sinal">The computer stopped responding.</string>
     <string name="and_wifi_aviso">You may need additional settings, such as configuring port forwarding on your router.</string>
@@ -57,4 +59,12 @@
     <string name="and_ver_versao">View</string>
     <string name="and_atualizacoes_on">Check for updates: on</string>
     <string name="and_atualizacoes_off">Check for updates: off</string>
+    <string name="and_touchpad_esquerdo">Left</string>
+    <string name="and_touchpad_direito">Right</string>
+    <string name="and_touchpad_barra">Scroll</string>
+    <string name="and_touchpad_dica">One finger moves the mouse. Tap the left or right side to click. Drag along the right bar to scroll.</string>
+    <string name="and_poupanca_aviso">The remote keyboard will enter power-saving mode to protect your device. Touch the screen to cancel or to resume the session.</string>
+    <string name="and_poupanca_contagem">In %1$d seconds</string>
+    <string name="and_poupanca_valor">Power saving: %1$d min</string>
+    <string name="and_poupanca_desligada">Power saving: off</string>
 </resources>

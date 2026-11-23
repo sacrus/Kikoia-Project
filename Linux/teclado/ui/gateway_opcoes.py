@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from teclado.core.idiomas import t
+from teclado.ui.estilo_dialogos import aplicar_estilo_dialogo, criar_cabecalho_dialogo
 
 ROTULO_CODIGO_EXPIRADO = "—"
 
@@ -58,6 +59,7 @@ class DialogoGateway(QDialog):
         self._tempo.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self._botao_ligar = QPushButton()
+        self._botao_ligar.setProperty("papel", "primario")
         self._botao_ligar.clicked.connect(self._ligar_ou_desligar)
         self._botao_codigo = QPushButton(t("gateway.gerar_codigo"))
         self._botao_codigo.clicked.connect(self._novo_codigo)
@@ -103,11 +105,15 @@ class DialogoGateway(QDialog):
         botoes.addWidget(fechar)
 
         raiz = QVBoxLayout(self)
+        raiz.setContentsMargins(18, 16, 18, 16)
+        raiz.setSpacing(10)
+        raiz.addLayout(criar_cabecalho_dialogo(t("telemovel.titulo"), icone="telemovel"))
         raiz.addWidget(self._estado)
         raiz.addWidget(self._codigo)
         raiz.addWidget(self._tempo)
         raiz.addLayout(botoes)
         raiz.addLayout(linha_porta)
+        aplicar_estilo_dialogo(self, cor_destaque="#2563EB")
         raiz.addWidget(self._aviso_wifi)
         raiz.addWidget(ajuda)
 

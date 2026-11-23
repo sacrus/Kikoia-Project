@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 from teclado.core.idiomas import t
+from teclado.core.paths import DADOS_PROJETO
 from PySide6.QtCore import QRect, Qt, QTimer
 from PySide6.QtGui import QColor, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import (
+    QApplication,
     QColorDialog,
     QDialog,
     QDialogButtonBox,
@@ -23,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from teclado.core.tema import Tema, cor_texto_para
+from teclado.ui.estilo_dialogos import aplicar_estilo_dialogo, criar_cabecalho_dialogo
 
 # Diálogos Qt próprios (não nativos): comportamento previsível no Windows
 # e funcionam dentro de uma janela que não aceita foco.
@@ -46,6 +50,39 @@ def _trazer_para_frente(dialogo: QDialog) -> None:
         dialogo.activateWindow()
 
 
+_HICON_CACHE: tuple[int, int] | None = None
+
+
+def _aplicar_icone_win32(janela: QWidget) -> None:
+    """Aplica kikoia.ico diretamente ao HWND no Windows (barra de tarefas e titulo)."""
+    global _HICON_CACHE
+    if sys.platform != "win32":
+        return
+    ico = DADOS_PROJETO / "icone" / "kikoia.ico"
+    if not ico.is_file():
+        return
+    try:
+        import ctypes
+
+        user32 = ctypes.windll.user32
+        if _HICON_CACHE is None:
+            image_icon = 1
+            lr_loadfromfile = 0x0010
+            big = user32.LoadImageW(None, str(ico), image_icon, 48, 48, lr_loadfromfile)
+            small = user32.LoadImageW(None, str(ico), image_icon, 16, 16, lr_loadfromfile)
+            if big or small:
+                _HICON_CACHE = (big, small)
+        if _HICON_CACHE:
+            wm_seticon = 0x0080
+            hwnd = int(janela.winId())
+            if _HICON_CACHE[0]:
+                user32.SendMessageW(hwnd, wm_seticon, 1, _HICON_CACHE[0])
+            if _HICON_CACHE[1]:
+                user32.SendMessageW(hwnd, wm_seticon, 0, _HICON_CACHE[1])
+    except Exception:
+        pass
+
+
 def executar_dialogo(dialogo: QDialog) -> int:
     """Mostra um diálogo modal e garante que fica visível e com foco.
 
@@ -54,12 +91,18 @@ def executar_dialogo(dialogo: QDialog) -> int:
     Um diálogo pode definir `estado_inicial` (ex.: maximizado) e é esse o estado
     usado.
     """
+    app = QApplication.instance()
+    if app is not None and not app.windowIcon().isNull() and dialogo.windowIcon().isNull():
+        dialogo.setWindowIcon(app.windowIcon())
+    if not dialogo.styleSheet():
+        aplicar_estilo_dialogo(dialogo)
     dialogo.setWindowState(_estado_desejado(dialogo))
     dialogo.show()
+    _aplicar_icone_win32(dialogo)
     dialogo.raise_()
     dialogo.activateWindow()
     # Repete depois de o ciclo de eventos arrancar, quando o Windows ja processou a janela.
-    QTimer.singleShot(0, lambda: _trazer_para_frente(dialogo))
+    QTimer.singleShot(0, lambda: (_trazer_para_frente(dialogo), _aplicar_icone_win32(dialogo)))
     return dialogo.exec()
 
 
@@ -119,11 +162,15 @@ class DialogoPersonalizacao(QDialog):
         caixa.rejected.connect(self.reject)
 
         raiz = QVBoxLayout(self)
-        raiz.addWidget(self._previa)
+        raiz.setContentsMargins(18, 16, 18, 16)
+        raiz.setSpacing(12)
+        raiz.addLayout(criar_cabecalho_dialogo(t("dialogos.personalizar"), icone="personalizar"))
+        raiz.addWidget(self._previa, alignment=Qt.AlignmentFlag.AlignCenter)
         raiz.addWidget(self._etiqueta_imagem)
         raiz.addLayout(linha_cores)
         raiz.addLayout(linha_imagem)
         raiz.addWidget(caixa)
+        aplicar_estilo_dialogo(self, cor_destaque="#16A34A")
 
     # --- pre-visualizacao -----------------------------------------------
 

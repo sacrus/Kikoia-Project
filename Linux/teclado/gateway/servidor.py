@@ -31,6 +31,7 @@ from websockets.exceptions import ConnectionClosed
 from teclado.core.idiomas import t
 from teclado.gateway.confianca import RepositorioConfianca, chave_reconhecimento, derivar, prova
 from teclado.gateway.emparelhamento import CodigoEmparelhamento
+from teclado.gateway.protocolo import pacotes_de_icones
 from teclado.gateway.protocolo import (
     MAX_PALAVRA,
     MAX_SUGESTOES,
@@ -100,6 +101,9 @@ class NucleoGateway:
         self._dispositivos: set[str] = set()
         # id(canal) -> (canal, sessao) dos telemoveis com sessao ativa.
         self._sessoes: dict[int, tuple[Any, Sessao]] = {}
+        # Icones das teclas (PNG em partes), enviados a cada telemovel ao ligar.
+        self._pacotes_icones: list[dict[str, Any]] = []
+        self._modo_touchpad = "normal"
         self._ultimo_sinal: dict[int, float] = {}
 
     # --- estado -------------------------------------------------------------
@@ -126,6 +130,17 @@ class NucleoGateway:
     def atualizar_teclado(self, modelo: dict[str, Any]) -> None:
         """Envia o teclado ativo a todos os telemoveis ligados."""
         self._difundir(lambda sessao: self._mensagem_teclado(sessao, modelo))
+
+    def atualizar_modo_touchpad(self, modo: str) -> None:
+        """Diz aos telemoveis em que modo esta o touchpad (normal ou Quadro)."""
+        self._modo_touchpad = modo
+        self._difundir(lambda sessao: sessao.enviar("modo_touchpad", "mt", {"modo": modo}))
+
+    def atualizar_icones(self, imagens: dict[str, str], coloridos: set[str]) -> None:
+        """Envia os icones das teclas (PNG em base64) a todos os telemoveis ligados, em partes."""
+        self._pacotes_icones = pacotes_de_icones(imagens, coloridos)
+        for indice, pacote in enumerate(self._pacotes_icones):
+            self._difundir(lambda sessao, p=pacote, i=indice: sessao.enviar("icones", f"ic{i}", p))
 
     def atualizar_sugestoes(self, palavras: list[str]) -> None:
         """Envia as sugestoes atuais a todos os telemoveis ligados."""
@@ -288,6 +303,10 @@ class NucleoGateway:
                 dados = self._mensagem_teclado(sessao, modelo)
                 if dados is not None:
                     await canal.send(dados)
+        for indice, pacote in enumerate(self._pacotes_icones):
+            await canal.send(sessao.enviar("icones", f"ic{indice}", pacote))
+        if self._modo_touchpad != "normal":  # o telemovel comeca sempre em normal
+            await canal.send(sessao.enviar("modo_touchpad", "mt", {"modo": self._modo_touchpad}))
         if self._fornecer_sugestoes is not None:
             palavras = self._fornecer_sugestoes()
             limpas = [p for p in palavras if 1 <= len(p) <= MAX_PALAVRA][:MAX_SUGESTOES]
@@ -299,7 +318,7 @@ class NucleoGateway:
         tipo = msg["tipo"]
         if tipo == "ping":
             await canal.send(sessao.enviar("pong", msg["id"]))
-        elif tipo in ("acao", "escolher_sugestao", "interruptor"):
+        elif tipo in ("acao", "escolher_sugestao", "interruptor", "toque"):
             self._ao_acao(msg)
         # Outros tipos sao do PC para o telemovel: ignorados aqui.
 

@@ -43,6 +43,8 @@
     <string name="and_emparelhar">Appairer</string>
     <string name="and_voltar">Retour</string>
     <string name="and_cancelar">Annuler</string>
+    <string name="and_touchpad">Pavé tactile</string>
+    <string name="and_voltar_teclado">Clavier</string>
     <string name="and_reconectando">Reconnexion…</string>
     <string name="and_sem_sinal">L\'ordinateur ne répond plus.</string>
     <string name="and_wifi_aviso">Des réglages supplémentaires peuvent être nécessaires, comme la configuration de la redirection de ports sur votre routeur.</string>
@@ -57,4 +59,12 @@
     <string name="and_ver_versao">Voir</string>
     <string name="and_atualizacoes_on">Vérifier les mises à jour : oui</string>
     <string name="and_atualizacoes_off">Vérifier les mises à jour : non</string>
+    <string name="and_touchpad_esquerdo">Gauche</string>
+    <string name="and_touchpad_direito">Droit</string>
+    <string name="and_touchpad_barra">Défiler</string>
+    <string name="and_touchpad_dica">Un doigt déplace la souris. Touchez à gauche ou à droite pour cliquer. Glissez sur la barre de droite pour défiler.</string>
+    <string name="and_poupanca_aviso">Le clavier distant va passer en mode économie d\'énergie pour protéger votre appareil. Touchez l\'écran pour annuler ou reprendre la session.</string>
+    <string name="and_poupanca_contagem">Dans %1$d secondes</string>
+    <string name="and_poupanca_valor">Économie d\'énergie : %1$d min</string>
+    <string name="and_poupanca_desligada">Économie d\'énergie : désactivée</string>
 </resources>

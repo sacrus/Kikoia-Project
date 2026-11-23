@@ -27,13 +27,25 @@ TIPOS = frozenset({
     "emparelhar", "teclados", "acao", "sugestoes", "escolher_sugestao", "ping", "pong",
     # Interruptores Falar e Ditar: o telemovel pede (interruptor) e o PC devolve o estado (interruptores).
     "interruptor", "interruptores",
+    # Touchpad: o telemovel envia os toques (down/move/up) e o PC move e clica o rato.
+    "toque",
+    # Icones das teclas do Quadro (PNG em base64), enviados em partes.
+    "icones",
+    # Modo do touchpad (normal ou Quadro): o telemovel mostra o desenho adequado.
+    "modo_touchpad",
 })
 INTERRUPTORES = frozenset({"falar", "ditar"})
-TIPOS_ACAO_REMOTA = frozenset({"texto", "tecla", "acento", "multitoque", "modificador", "acao", "navegar", "comando"})
+TIPOS_ACAO_REMOTA = frozenset({"texto", "tecla", "acento", "multitoque", "modificador", "acao", "navegar", "comando", "quadro"})
 MAX_LAYOUTS = 50
 MAX_SUGESTOES = 10
 MAX_PALAVRA = 40
 MAX_HEX = 256
+from teclado.core.toque import MODOS  # noqa: E402 (modos validos do touchpad)
+
+MAX_ICONES = 40  # por mensagem
+ICONE_MAX_CHARS = 11000  # PNG em base64 de cada icone
+TAMANHO_PACOTE_ICONES = 11000  # caracteres de icones por mensagem (cabe nos 16 KB)
+_NOME_ICONE = re.compile(r"[a-z0-9_-]{1,40}")
 # Acoes remotas: so edicao de texto e leitura. Fechar/minimizar janelas fica so no PC.
 ACOES_REMOTAS = frozenset(ACOES_EDICAO) | {"ler_selecao"}
 PASSOS_EMPARELHAR = frozenset({
@@ -96,6 +108,27 @@ def _validar_corpo(tipo: str, msg: dict[str, Any]) -> None:
             raise ProtocoloErro(f"acao invalida: {erro}") from None
         return
 
+    if tipo == "modo_touchpad":
+        if msg.get("modo") not in MODOS:
+            raise ProtocoloErro("modo de touchpad invalido")
+        return
+
+    if tipo == "icones":
+        imagens = msg.get("imagens")
+        coloridos = msg.get("coloridos")
+        if not isinstance(imagens, dict) or len(imagens) > MAX_ICONES:
+            raise ProtocoloErro("lista de icones invalida")
+        for nome, dados in imagens.items():
+            if not isinstance(nome, str) or not _NOME_ICONE.fullmatch(nome):
+                raise ProtocoloErro("nome de icone invalido")
+            if not isinstance(dados, str) or len(dados) > ICONE_MAX_CHARS:
+                raise ProtocoloErro("icone demasiado grande")
+        if not isinstance(coloridos, list) or len(coloridos) > MAX_ICONES:
+            raise ProtocoloErro("lista de icones coloridos invalida")
+        if not all(isinstance(n, str) and _NOME_ICONE.fullmatch(n) for n in coloridos):
+            raise ProtocoloErro("nome de icone colorido invalido")
+        return
+
     if tipo == "escolher_sugestao":
         indice = msg.get("indice")
         if not isinstance(indice, int) or isinstance(indice, bool) or not 0 <= indice < MAX_SUGESTOES:
@@ -113,6 +146,27 @@ def _validar_corpo(tipo: str, msg: dict[str, Any]) -> None:
                 raise ProtocoloErro("estado de interruptores invalido")
         return
 
+    if tipo == "toque":
+        acao = msg.get("acao")
+        if acao not in ("dimensoes", "down", "move", "up"):
+            raise ProtocoloErro("toque invalido")
+        if acao == "dimensoes":
+            for campo in ("largura_mm", "altura_mm"):
+                valor = msg.get(campo)
+                if isinstance(valor, bool) or not isinstance(valor, int) or not 20 <= valor <= 1000:
+                    raise ProtocoloErro("tamanho do touchpad invalido")
+            return
+        if acao == "down" and msg.get("area") not in ("esquerda", "direita", "barra"):
+            raise ProtocoloErro("area do toque invalida")
+        ident = msg.get("dedo")
+        if isinstance(ident, bool) or not isinstance(ident, int) or not 0 <= ident < 32:
+            raise ProtocoloErro("identificador de toque invalido")
+        for campo in ("x", "y"):
+            valor = msg.get(campo)
+            if isinstance(valor, bool) or not isinstance(valor, int) or not 0 <= valor <= 10000:
+                raise ProtocoloErro("posicao de toque invalida")
+        return
+
     if tipo == "sugestoes":
         palavras = msg.get("palavras")
         if not isinstance(palavras, list) or len(palavras) > MAX_SUGESTOES:
@@ -124,6 +178,28 @@ def _validar_corpo(tipo: str, msg: dict[str, Any]) -> None:
 
 
 # --- codificacao --------------------------------------------------------------
+
+def pacotes_de_icones(imagens: dict[str, str], coloridos: set[str]) -> list[dict[str, Any]]:
+    """Divide os icones em pacotes que cabem numa mensagem. Icones invalidos ou grandes demais sao ignorados."""
+    pacotes: list[dict[str, Any]] = []
+    atual: dict[str, str] = {}
+    tamanho = 0
+
+    def fechar() -> None:
+        pacotes.append({"imagens": dict(atual), "coloridos": sorted(n for n in atual if n in coloridos)})
+
+    for nome, dados in sorted(imagens.items()):
+        if not _NOME_ICONE.fullmatch(nome) or not isinstance(dados, str) or len(dados) > ICONE_MAX_CHARS:
+            continue
+        if atual and (tamanho + len(dados) > TAMANHO_PACOTE_ICONES or len(atual) >= MAX_ICONES):
+            fechar()
+            atual, tamanho = {}, 0
+        atual[nome] = dados
+        tamanho += len(dados)
+    if atual:
+        fechar()
+    return pacotes
+
 
 def codificar(chave: bytes, tipo: str, id_: str, sequencia: int, corpo: dict[str, Any] | None = None) -> bytes:
     """Gera os bytes de uma mensagem autenticada. Valida antes de enviar."""

@@ -31,6 +31,8 @@ def _dict_de_tecla(tecla: Tecla) -> dict:
         dados["shift"] = tecla.shift
     if tecla.idiomas is not None:
         dados["idiomas"] = sorted(tecla.idiomas)
+    if tecla.icone is not None:
+        dados["icone"] = tecla.icone
     return dados
 
 
@@ -68,6 +70,17 @@ def adicionar_tecla(modelo: dict, linha: int | None, tecla: dict) -> tuple[int, 
     return linha, len(modelo["linhas"][linha]) - 1
 
 
+def inserir_tecla(modelo: dict, linha: int, posicao: int, tecla: dict) -> tuple[int, int]:
+    """Insere a tecla na linha e posicao indicadas (ajustadas aos limites). Devolve (linha, posicao)."""
+    if not modelo["linhas"]:
+        adicionar_linha(modelo)
+    linha = max(0, min(linha, len(modelo["linhas"]) - 1))
+    fila = modelo["linhas"][linha]
+    posicao = max(0, min(posicao, len(fila)))
+    fila.insert(posicao, tecla)
+    return linha, posicao
+
+
 def remover_tecla(modelo: dict, linha: int, posicao: int) -> None:
     del modelo["linhas"][linha][posicao]
 
@@ -80,6 +93,30 @@ def mover_tecla(modelo: dict, linha: int, posicao: int, direcao: int) -> int:
         return posicao
     fila[posicao], fila[destino] = fila[destino], fila[posicao]
     return destino
+
+
+def mover_tecla_para(
+    modelo: dict,
+    linha_origem: int,
+    pos_origem: int,
+    linha_destino: int,
+    pos_destino: int,
+) -> tuple[int, int]:
+    """Move uma tecla de (linha_origem, pos_origem) para (linha_destino, pos_destino).
+
+    Funciona na mesma linha ou entre linhas diferentes. Devolve a nova (linha, posicao).
+    """
+    linhas = modelo["linhas"]
+    if not (0 <= linha_origem < len(linhas)) or not (0 <= pos_origem < len(linhas[linha_origem])):
+        return linha_origem, pos_origem
+    linha_destino = max(0, min(linha_destino, len(linhas) - 1))
+    tecla = linhas[linha_origem].pop(pos_origem)
+    if linha_origem == linha_destino and pos_origem < pos_destino:
+        pos_destino -= 1
+    fila_destino = linhas[linha_destino]
+    pos_destino = max(0, min(pos_destino, len(fila_destino)))
+    fila_destino.insert(pos_destino, tecla)
+    return linha_destino, pos_destino
 
 
 def _limpo(modelo: dict) -> dict:

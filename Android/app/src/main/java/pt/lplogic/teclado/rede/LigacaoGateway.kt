@@ -1,5 +1,7 @@
 package pt.lplogic.teclado.rede
 
+import pt.lplogic.teclado.IconesTeclado
+import pt.lplogic.teclado.ModoTouchpad
 import pt.lplogic.teclado.R
 import pt.lplogic.teclado.recurso
 import pt.lplogic.teclado.crypto.Spake2A
@@ -111,6 +113,19 @@ class LigacaoGateway(
     @Synchronized
     fun alternarInterruptor(nome: String, ligado: Boolean): Boolean =
         enviarMensagem("interruptor", mapOf("nome" to nome, "ligado" to ligado))
+
+    /** Toque no touchpad: acao "down", "move" ou "up"; x e y entre 0 e 10000 (canto a canto). */
+    @Synchronized
+    fun enviarToque(acao: String, id: Int, x: Int, y: Int, area: String?): Boolean {
+        val corpo = mutableMapOf<String, Any?>("acao" to acao, "dedo" to id, "x" to x, "y" to y)
+        if (area != null) corpo["area"] = area
+        return enviarMensagem("toque", corpo)
+    }
+
+    /** Tamanho fisico da superficie do touchpad (em milimetros): o PC usa-o para a sensibilidade. */
+    @Synchronized
+    fun enviarDimensoes(larguraMm: Int, alturaMm: Int): Boolean =
+        enviarMensagem("toque", mapOf("acao" to "dimensoes", "largura_mm" to larguraMm, "altura_mm" to alturaMm))
 
     /** Escolhe a sugestao com este indice (0 a 9) na lista atual do computador. */
     @Synchronized
@@ -239,6 +254,8 @@ class LigacaoGateway(
                         ouvinte.aoSugestoes(palavras)
                     }
                     "interruptores" -> ouvinte.aoInterruptores(mensagem)
+                    "icones" -> IconesTeclado.receber(mensagem)
+                    "modo_touchpad" -> ModoTouchpad.receber(mensagem)
                 }
             }
         }

@@ -12,10 +12,13 @@ from __future__ import annotations
 
 from teclado.core.idiomas import t
 import copy
+import json
 from collections.abc import Callable
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QByteArray, QMimeData, QPoint, QRectF, Qt
+from PySide6.QtGui import QColor, QDrag, QPainter, QPixmap
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -38,19 +41,21 @@ from teclado.core.acentos import ACENTOS
 from teclado.core.layout import MODIFICADORES, Layout, LayoutInvalido, validar_tecla
 from teclado.core.layout_editor import (
     adicionar_linha,
-    remover_teclas_de_comando,
     adicionar_tecla,
+    inserir_tecla,
     modelo_de,
     modelo_vazio,
-    mover_tecla,
+    mover_tecla_para,
     remover_linha,
     remover_tecla,
+    remover_teclas_de_comando,
     tecla_dict,
 )
 from teclado.core.rotulos import rotulo_tecla
 from teclado.core.saida import ACOES, TECLAS_ESPECIAIS
 from teclado.ui.comandos_ui import DialogoComando, DialogoComandos
 from teclado.ui.dialogos import executar_dialogo
+from teclado.ui.estilo_dialogos import aplicar_estilo_dialogo
 
 def tipos_tecla() -> tuple[tuple[str, str], ...]:
     return (
@@ -256,6 +261,145 @@ class DialogoTecla(QDialog):
         super().accept()
 
 
+_MIME_CELULA = "application/x-kikoia-celula"
+_MIME_PALETA = "application/x-kikoia-paleta"
+
+
+class _BotaoArrastavel(QPushButton):
+    """Botao que se comporta normalmente ao clicar, mas inicia arrasto ao puxar com o rato."""
+
+    def __init__(self, texto: str, mime: str, dados: object, acao: Qt.DropAction) -> None:
+        super().__init__(texto)
+        self._mime = mime
+        self._dados = dados
+        self._acao_drag = acao
+        self._inicio_arrasto: QPoint | None = None
+        self.setCursor(Qt.CursorShape.OpenHandCursor)
+
+    def mousePressEvent(self, evento) -> None:  # noqa: N802 (nome do Qt)
+        if evento.button() == Qt.MouseButton.LeftButton:
+            self._inicio_arrasto = evento.position().toPoint()
+        super().mousePressEvent(evento)
+
+    def mouseMoveEvent(self, evento) -> None:  # noqa: N802 (nome do Qt)
+        if self._inicio_arrasto is None or not (evento.buttons() & Qt.MouseButton.LeftButton):
+            super().mouseMoveEvent(evento)
+            return
+        distancia = (evento.position().toPoint() - self._inicio_arrasto).manhattanLength()
+        if distancia < QApplication.startDragDistance():
+            super().mouseMoveEvent(evento)
+            return
+        ponto = self._inicio_arrasto
+        self._inicio_arrasto = None
+        self.setDown(False)
+
+        arrasto = QDrag(self)
+        mime = QMimeData()
+        mime.setData(self._mime, QByteArray(json.dumps(self._dados).encode("utf-8")))
+        arrasto.setMimeData(mime)
+
+        # Miniatura semitransparente da tecla a seguir o cursor
+        captura = self.grab()
+        fantasma = QPixmap(captura.size())
+        fantasma.fill(Qt.GlobalColor.transparent)
+        pintor = QPainter(fantasma)
+        pintor.setOpacity(0.82)
+        pintor.drawPixmap(0, 0, captura)
+        pintor.end()
+        arrasto.setPixmap(fantasma)
+        arrasto.setHotSpot(ponto)
+        arrasto.exec(self._acao_drag)
+
+    def mouseReleaseEvent(self, evento) -> None:  # noqa: N802 (nome do Qt)
+        self._inicio_arrasto = None
+        super().mouseReleaseEvent(evento)
+
+
+class _LinhaGrelha(QWidget):
+    """Linha da grelha que aceita largar teclas (da grelha ou da lista) com indicador visual."""
+
+    def __init__(
+        self,
+        indice_linha: int,
+        ao_mover: Callable[[int, int, int, int], None],
+        ao_inserir: Callable[[int, int, dict], None],
+    ) -> None:
+        super().__init__()
+        self._indice_linha = indice_linha
+        self._ao_mover = ao_mover
+        self._ao_inserir = ao_inserir
+        self._botoes: list[QPushButton] = []
+        self._indicador_x: int | None = None
+        self._indicador_pos: int | None = None
+        self.setAcceptDrops(True)
+
+    def registar_botoes(self, botoes: list[QPushButton]) -> None:
+        self._botoes = botoes
+
+    def _calcular_alvo(self, x: float) -> tuple[int, int]:
+        for i, botao in enumerate(self._botoes):
+            meio = botao.x() + botao.width() / 2.0
+            if x < meio:
+                return i, max(24, botao.x() - 2)
+        if self._botoes:
+            ultimo = self._botoes[-1]
+            return len(self._botoes), ultimo.x() + ultimo.width() + 2
+        return 0, 28
+
+    def _aceita(self, evento) -> bool:
+        mime = evento.mimeData()
+        return mime.hasFormat(_MIME_CELULA) or mime.hasFormat(_MIME_PALETA)
+
+    def dragEnterEvent(self, evento) -> None:  # noqa: N802 (nome do Qt)
+        if self._aceita(evento):
+            self._indicador_pos, self._indicador_x = self._calcular_alvo(evento.position().x())
+            self.update()
+            evento.acceptProposedAction()
+
+    def dragMoveEvent(self, evento) -> None:  # noqa: N802 (nome do Qt)
+        if self._aceita(evento):
+            pos, x = self._calcular_alvo(evento.position().x())
+            if pos != self._indicador_pos or x != self._indicador_x:
+                self._indicador_pos, self._indicador_x = pos, x
+                self.update()
+            evento.acceptProposedAction()
+
+    def dragLeaveEvent(self, evento) -> None:  # noqa: N802 (nome do Qt)
+        self._indicador_pos = None
+        self._indicador_x = None
+        self.update()
+
+    def dropEvent(self, evento) -> None:  # noqa: N802 (nome do Qt)
+        pos, _ = self._calcular_alvo(evento.position().x())
+        self._indicador_pos = None
+        self._indicador_x = None
+        self.update()
+        mime = evento.mimeData()
+        if mime.hasFormat(_MIME_CELULA):
+            r_orig, p_orig = json.loads(bytes(mime.data(_MIME_CELULA)).decode("utf-8"))
+            self._ao_mover(int(r_orig), int(p_orig), self._indice_linha, pos)
+            evento.acceptProposedAction()
+        elif mime.hasFormat(_MIME_PALETA):
+            item = json.loads(bytes(mime.data(_MIME_PALETA)).decode("utf-8"))
+            self._ao_inserir(self._indice_linha, pos, item)
+            evento.acceptProposedAction()
+
+    def paintEvent(self, evento) -> None:  # noqa: N802 (nome do Qt)
+        super().paintEvent(evento)
+        if self._indicador_x is None:
+            return
+        pintor = QPainter(self)
+        pintor.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pintor.setPen(Qt.PenStyle.NoPen)
+        # Realce suave na linha de destino
+        pintor.setBrush(QColor(37, 99, 235, 22))
+        pintor.drawRoundedRect(QRectF(self.rect()).adjusted(24, 1, -38, -1), 6, 6)
+        # Barra vertical azul a marcar o ponto exato de insercao
+        pintor.setBrush(QColor("#2563EB"))
+        pintor.drawRoundedRect(QRectF(self._indicador_x - 2, 3, 4, self.height() - 6), 2, 2)
+        pintor.end()
+
+
 class DialogoEditorLayout(QDialog):
     """Editor visual: grelha do teclado em cima, lista de teclas em baixo.
 
@@ -346,14 +490,9 @@ class DialogoEditorLayout(QDialog):
         self._botao_editar.clicked.connect(self._editar_selecionada)
         self._botao_apagar_tecla = QPushButton(t("editor.apagar_tecla"))
         self._botao_apagar_tecla.clicked.connect(self._apagar_selecionada)
-        self._botao_esq = QPushButton(t("editor.mover_esquerda"))
-        self._botao_esq.clicked.connect(lambda: self._mover_selecionada(-1))
-        self._botao_dir = QPushButton(t("editor.mover_direita"))
-        self._botao_dir.clicked.connect(lambda: self._mover_selecionada(1))
         propriedades = QHBoxLayout()
         propriedades.addWidget(self._info, 1)
-        for widget in (self._spin_largura, self._botao_editar, self._botao_apagar_tecla,
-                       self._botao_esq, self._botao_dir):
+        for widget in (self._spin_largura, self._botao_editar, self._botao_apagar_tecla):
             propriedades.addWidget(widget)
 
         # --- 2. lista de teclas -----------------------------------------
@@ -396,6 +535,7 @@ class DialogoEditorLayout(QDialog):
         botao_apagar = QPushButton(t("editor.apagar_teclado"))
         botao_apagar.clicked.connect(self._apagar_teclado)
         botao_guardar = QPushButton(t("geral.guardar"))
+        botao_guardar.setProperty("papel", "primario")
         botao_guardar.clicked.connect(self._guardar)
         botao_fechar = QPushButton(t("geral.fechar"))
         botao_fechar.clicked.connect(self.reject)
@@ -406,6 +546,9 @@ class DialogoEditorLayout(QDialog):
         rodape.addWidget(botao_fechar)
 
         raiz = QVBoxLayout(self)
+        raiz.setContentsMargins(16, 14, 16, 14)
+        raiz.setSpacing(10)
+        aplicar_estilo_dialogo(self, cor_destaque="#DB2777")
         nome_linha = QHBoxLayout()
         nome_linha.addWidget(QLabel(t("editor.nome")))
         nome_linha.addWidget(self._nome, 1)
@@ -440,7 +583,7 @@ class DialogoEditorLayout(QDialog):
                 widget.deleteLater()
 
     def _construir_linha(self, r: int, linha: list[dict]) -> QWidget:
-        fila = QWidget()
+        fila = _LinhaGrelha(r, self._mover_por_arrasto, self._inserir_por_arrasto)
         horizontal = QHBoxLayout(fila)
         horizontal.setContentsMargins(0, 0, 0, 0)
         horizontal.setSpacing(4)
@@ -450,8 +593,14 @@ class DialogoEditorLayout(QDialog):
         etiqueta.setAlignment(Qt.AlignmentFlag.AlignCenter)
         horizontal.addWidget(etiqueta)
 
+        botoes_da_linha: list[QPushButton] = []
         for p, tecla in enumerate(linha):
-            botao = QPushButton(self._rotulo_visivel(tecla))
+            botao = _BotaoArrastavel(
+                self._rotulo_visivel(tecla),
+                _MIME_CELULA,
+                [r, p],
+                Qt.DropAction.MoveAction,
+            )
             botao.setCheckable(True)
             botao.setChecked(self._cel == (r, p))
             botao.setMinimumHeight(52)
@@ -460,6 +609,8 @@ class DialogoEditorLayout(QDialog):
             fator = max(1, round(float(tecla.get("largura", 1.0)) * 10))
             horizontal.addWidget(botao, fator)
             self._celulas[(r, p)] = botao
+            botoes_da_linha.append(botao)
+        fila.registar_botoes(botoes_da_linha)
 
         mais = QPushButton("+")
         mais.setMinimumHeight(52)
@@ -504,8 +655,7 @@ class DialogoEditorLayout(QDialog):
     def _atualizar_propriedades(self) -> None:
         tecla = self._tecla_selecionada()
         ativo = tecla is not None
-        for widget in (self._spin_largura, self._botao_editar, self._botao_apagar_tecla,
-                       self._botao_esq, self._botao_dir):
+        for widget in (self._spin_largura, self._botao_editar, self._botao_apagar_tecla):
             widget.setEnabled(ativo)
         if tecla is None:
             self._info.setText(t("editor.nenhuma"))
@@ -671,13 +821,23 @@ class DialogoEditorLayout(QDialog):
         self._cel = None
         self._refrescar()
 
-    def _mover_selecionada(self, direcao: int) -> None:
-        if self._cel is None:
-            return
-        r, p = self._cel
-        novo = mover_tecla(self._modelo, r, p, direcao)
-        self._cel = (r, novo)
+    def _mover_por_arrasto(
+        self,
+        linha_origem: int,
+        pos_origem: int,
+        linha_destino: int,
+        pos_destino: int,
+    ) -> None:
+        novo_r, novo_p = mover_tecla_para(self._modelo, linha_origem, pos_origem, linha_destino, pos_destino)
+        self._cel = (novo_r, novo_p)
         self._refrescar()
+
+    def _inserir_por_arrasto(self, linha: int, posicao: int, item: dict) -> None:
+        nova = copy.deepcopy(item)
+        novo_r, novo_p = inserir_tecla(self._modelo, linha, posicao, nova)
+        self._cel = (novo_r, novo_p)
+        self._refrescar()
+        self._dizer(t("editor.acrescentada", rotulo=nova["rotulo"], linha=novo_r + 1))
 
     # --- lista de teclas -------------------------------------------------
 
@@ -710,7 +870,7 @@ class DialogoEditorLayout(QDialog):
                 item.widget().deleteLater()
         self._paleta = []
         for indice, item in enumerate(simbolos_disponiveis(self._atalhos, list(self._comandos.values()))):
-            botao = QPushButton(item["rotulo"])
+            botao = _BotaoArrastavel(item["rotulo"], _MIME_PALETA, item, Qt.DropAction.CopyAction)
             botao.setCheckable(True)
             botao.setMinimumSize(46, 40)
             botao.setToolTip(rotulo_tipo()[item["acao"]["tipo"]])

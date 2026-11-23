@@ -12,7 +12,8 @@ import time
 import traceback
 
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
-from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QStyle, QSystemTrayIcon
+from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
 from teclado.core.aplicacao import Aplicacao
 from teclado.core.dicionario import Dicionario
@@ -20,10 +21,16 @@ from teclado.core.editor import Editor
 from teclado.core.paths import DADOS_PROJETO, RAIZ, pasta_dados_utilizador
 from teclado.core.reinicio import ARGUMENTO, comando_do_processo
 from teclado.core.simbolos import simbolos_para
+from teclado.core.rato import criar_rato
+from teclado.core.toque import Interpretador
+from teclado.ui.toque_opcoes import DialogoToque
+from teclado.ui.quadro_opcoes import DialogoQuadro
 from teclado.core.perfil import RepositorioPerfis, criar_perfil
 from teclado.core.captura_teclado import CapturaTeclado
 from teclado.core.ia import carregar_config, guardar_config
-from teclado.core.layout import NAVEGAR_ANTERIOR, LayoutInvalido
+from teclado.core.layout import NAVEGAR_ANTERIOR, NAVEGAR_BASE, LayoutInvalido
+from teclado.core.ponte_quadro import ClienteQuadro, QuadroIndisponivel, coloridos_da_resposta, icones_da_resposta
+from teclado.core.quadro_foco import quadro_em_foco
 from teclado.core.saida import criar_saida
 from teclado.core.voz import (
     Ditado,
@@ -40,6 +47,8 @@ from teclado.ui.definicoes import (
     ACAO_IA,
     ACAO_PERSONALIZAR,
     ACAO_SUPERVISAO,
+    ACAO_QUADRO,
+    ACAO_TOQUE,
     ACAO_VOZ,
     DialogoDefinicoes,
 )
@@ -86,6 +95,15 @@ def _registar_erros(pasta):
 
 # Nome do produto nas notificacoes, na janela e no sistema (nao depende do idioma).
 NOME_APP = "Kikoia"
+ICONE_APP = DADOS_PROJETO / "icone" / "kikoia.png"
+ICONE_APP_WIN = DADOS_PROJETO / "icone" / "kikoia.ico"
+
+
+def _carregar_icone_app() -> QIcon:
+    """Devolve o icone da aplicacao (multi-resolucao .ico no Windows, .png no Linux)."""
+    if sys.platform == "win32" and ICONE_APP_WIN.is_file():
+        return QIcon(str(ICONE_APP_WIN))
+    return QIcon(str(ICONE_APP))
 
 
 def _processo_destacado() -> dict:
@@ -108,15 +126,33 @@ def _escolher_plataforma_grafica() -> None:
     os.environ["QT_QPA_PLATFORM"] = "xcb"
 
 
+def _registar_identidade_windows() -> None:
+    """Regista o AppUserModelID e o icone atual no registo do utilizador (Windows).
+
+    O pequeno icone no topo das notificacoes do Windows vem desta chave (e nao do
+    QSystemTrayIcon); atualiza-la garante que aparece o LogoIMG novo em vez de cache antiga.
+    """
+    import ctypes
+    import winreg
+
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(NOME_APP)
+    try:
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, rf"Software\Classes\AppUserModelId\{NOME_APP}") as chave:
+            winreg.SetValueEx(chave, "DisplayName", 0, winreg.REG_SZ, NOME_APP)
+            winreg.SetValueEx(chave, "IconUri", 0, winreg.REG_SZ, str(ICONE_APP.resolve()))
+    except OSError:
+        pass
+
+
 def main() -> int:
     _escolher_plataforma_grafica()
+    if sys.platform == "win32":
+        # Antes de QApplication: garante icone proprio na barra de tarefas e nas notificacoes.
+        _registar_identidade_windows()
     qt = QApplication(sys.argv)
     qt.setApplicationName(NOME_APP)
-    if sys.platform == "win32":
-        # Sem isto, as notificacoes do Windows mostram o nome do interprete ("Python").
-        import ctypes
-
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(NOME_APP)
+    icone_app = _carregar_icone_app()
+    qt.setWindowIcon(icone_app)
     # Reinicio pedido pela instancia anterior (ex.: mudanca de idioma): espera que ela liberte o servidor.
     if ARGUMENTO in sys.argv:
         for _ in range(60):
@@ -286,10 +322,79 @@ def main() -> int:
         gateway.atualizar_teclado(modelo_de(com_nomes_atuais(controlador.layout)))
 
     def navegar(nome: str) -> None:
-        novo = controlador.voltar_teclado() if nome == NAVEGAR_ANTERIOR else controlador.navegar_para(nome)
+        if nome == NAVEGAR_BASE:
+            novo = controlador.voltar_ao_base_quadro()
+        elif nome == NAVEGAR_ANTERIOR:
+            novo = controlador.voltar_teclado()
+        else:
+            novo = controlador.navegar_para(nome)
         if novo is not None:
             janela.montar(com_nomes_atuais(novo))
             sincronizar_telemovel()
+
+    # --- Quadro Interativo: teclado proprio enquanto o Quadro e a janela em foco ---
+    # Ao ficar em foco, o teclado troca para o teclado do Quadro (gerado a partir do catalogo
+    # do proprio Quadro). Ao sair de foco, volta ao teclado que estava ativo.
+    cliente_quadro = ClienteQuadro()
+
+    def acao_quadro(identificador: str) -> None:
+        try:
+            cliente_quadro.executar(identificador)
+        except QuadroIndisponivel:
+            pass
+
+    modo_enviado = ["normal"]
+
+    def verificar_quadro() -> None:
+        verificar_quadro_base()
+        # O telemovel mostra o touchpad adequado ao modo atual (so envia quando muda).
+        if not gateway.ativo:
+            modo_enviado[0] = None  # ao voltar a ligar, o modo e enviado de novo
+            return
+        modo = controlador.modo_touchpad()
+        if modo != modo_enviado[0]:
+            modo_enviado[0] = modo
+            gateway.atualizar_modo_touchpad(modo)
+
+    def verificar_quadro_base() -> None:
+        # Com uma janela de definicoes ou de edicao aberta, o foco nao esta no Quadro: nao se muda de modo.
+        if janela.em_dialogo_aberto:
+            return
+        ativo = quadro_em_foco()
+        if ativo and not controlador.no_quadro():
+            try:
+                resposta = cliente_quadro.catalogo()
+            except QuadroIndisponivel:
+                return
+            janela.definir_icones(icones_da_resposta(resposta), coloridos_da_resposta(resposta))
+            gateway.atualizar_icones(resposta.get("icones") or {}, coloridos_da_resposta(resposta))
+            novo = controlador.entrar_quadro(resposta["catalogo"], idiomas.atual(), resposta.get("estado"))
+            janela.montar(com_nomes_atuais(novo))
+            sincronizar_telemovel()
+            return
+        if not ativo and controlador.no_quadro():
+            novo = controlador.sair_quadro()
+            try:
+                cliente_quadro.pedir_menu(True)
+            except QuadroIndisponivel:
+                pass
+            if novo is not None:
+                janela.montar(com_nomes_atuais(novo))
+                sincronizar_telemovel()
+            return
+        if controlador.no_quadro():
+            # Com o teclado do Quadro visivel, o menu do Quadro fica escondido; noutro teclado, volta a aparecer.
+            try:
+                resposta = cliente_quadro.pedir_menu(not controlador.no_teclado_do_quadro())
+            except QuadroIndisponivel:
+                return
+            if controlador.atualizar_estado_quadro(resposta.get("estado")):
+                janela.montar(com_nomes_atuais(controlador.layout))
+                sincronizar_telemovel()
+
+    temporizador_quadro = QTimer()
+    temporizador_quadro.timeout.connect(verificar_quadro)
+    temporizador_quadro.start(500)
 
     # --- acoes das definicoes (correm com o teclado recolhido) -----------
 
@@ -323,8 +428,8 @@ def main() -> int:
     def editar_teclados() -> None:
         dialogo = DialogoEditorLayout(
             None,
-            controlador.layouts,
-            controlador.layout,
+            controlador.layouts_do_utilizador(),
+            controlador.layout_base(),
             guardar=controlador.guardar_layout,
             apagar=controlador.apagar_layout,
             comandos=controlador.comandos,
@@ -361,7 +466,7 @@ def main() -> int:
             QMessageBox.warning(None, t("geral.supervisao"), str(erro))
 
     def aplicar_definicoes(escolhas: dict) -> None:
-        if escolhas["layout"] != controlador.layout.nome:
+        if escolhas["layout"] != controlador.layout_base().nome:
             novo = controlador.mudar_layout(escolhas["layout"])
             if novo is not None:
                 janela.montar(com_nomes_atuais(novo))
@@ -406,6 +511,10 @@ def main() -> int:
             abrir_gateway()
         elif escolhas["acao"] == ACAO_ATUALIZACOES:
             executar_dialogo(DialogoAtualizacoes(None))
+        elif escolhas["acao"] == ACAO_TOQUE:
+            abrir_toque()
+        elif escolhas["acao"] == ACAO_QUADRO:
+            executar_dialogo(DialogoQuadro(None))
 
     def opcoes_fisico() -> None:
         prefs = controlador.preferencias_fisico()
@@ -421,7 +530,10 @@ def main() -> int:
 
         A gravacao usa controlador.guardar_layout: passa pela mesma politica de supervisao.
         """
-        dialogo = DialogoIATeclado(None, carregar_config(pasta))
+        from teclado.core.tema import cor_texto_para
+
+        escuro = cor_texto_para(controlador.tema.cor_fundo) == "#FFFFFF"
+        dialogo = DialogoIATeclado(None, carregar_config(pasta), escuro=escuro)
         if executar_dialogo(dialogo) != ACEITE:
             return
         nova = dialogo.config_alterada()
@@ -456,8 +568,8 @@ def main() -> int:
         def fluxo() -> None:
             dialogo = DialogoDefinicoes(
                 None,
-                list(controlador.layouts),
-                controlador.layout.nome,
+                list(controlador.layouts_do_utilizador()),
+                controlador.layout_base().nome,
                 list(controlador.temas),
                 controlador.tema.nome,
                 editor.max_sugestoes,
@@ -465,6 +577,7 @@ def main() -> int:
                 idioma_atual=controlador.idioma,
                 arranque_sistema=arranque.ativado(),
                 verificar_atualizacoes=controlador.verificar_atualizacoes,
+                cores_temas={nome: tema.cor_fundo for nome, tema in controlador.temas.items()},
             )
             if executar_dialogo(dialogo) != ACEITE:
                 return
@@ -491,6 +604,7 @@ def main() -> int:
         ao_navegar=navegar,
         ao_comando=lambda id_: executar_por_id(id_),  # resolvido ao premir, nao na criacao
         ao_fechar=sair,
+        ao_quadro=lambda id_: acao_quadro(id_),
     )
     # Ao mostrar, a janela ancora-se no fundo do ecra e reserva essa area (ver ui/appbar.py).
 
@@ -501,7 +615,7 @@ def main() -> int:
     # Icone na area de notificacao: e a forma de voltar a mostrar o teclado depois de minimizado.
     tray = None
     if QSystemTrayIcon.isSystemTrayAvailable():
-        tray = QSystemTrayIcon(qt.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon), qt)
+        tray = QSystemTrayIcon(icone_app, qt)
         menu = QMenu()
         menu.addAction(idiomas.t("tray.mostrar"), mostrar_teclado)
         menu.addAction(idiomas.t("tray.sair"), qt.quit)
@@ -541,7 +655,7 @@ def main() -> int:
 
     def notificar(texto: str) -> None:
         if tray is not None:
-            tray.showMessage(NOME_APP, texto)
+            tray.showMessage(NOME_APP, texto, icone_app)
 
     def executar_por_id(id_: str) -> None:
         # So executa teclas guardadas no PC: o telemovel nunca envia texto de comando.
@@ -551,8 +665,18 @@ def main() -> int:
             logging.error("Tecla personalizada falhou: %s", erro)
             notificar(str(erro))
 
+    # Touchpad: o telemovel envia toques; o rato virtual move e clica (ver teclado/core/toque.py).
+    rato = criar_rato()
+    interpretador = Interpretador(rato, controlador.preferencias_toque, modo=controlador.modo_touchpad)
+
     def tratar_remoto(msg: dict) -> None:
         # Chega ja na thread do Qt (sinal). Navegacao e sugestoes mudam o estado do PC.
+        if msg["tipo"] == "toque":
+            if msg["acao"] == "dimensoes":
+                interpretador.dimensoes(msg["largura_mm"], msg["altura_mm"])
+            else:
+                interpretador.evento(msg["acao"], msg["dedo"], msg["x"], msg["y"], msg.get("area"))
+            return
         if msg["tipo"] == "interruptor":
             alternar_interruptor(msg["nome"], msg["ligado"])
             return
@@ -560,6 +684,9 @@ def main() -> int:
             editor.usar_sugestao(msg["indice"])
             return
         acao = msg["acao"]
+        if acao["tipo"] == "quadro":
+            acao_quadro(acao["valor"])
+            return
         if acao["tipo"] == "comando":
             executar_por_id(acao["valor"])
             return
@@ -662,6 +789,15 @@ def main() -> int:
 
     editor.ao_atualizar = ao_mudar_sugestoes
 
+    def abrir_toque() -> None:
+        dialogo = DialogoToque(None, controlador.preferencias_toque())
+        if executar_dialogo(dialogo) != ACEITE:
+            return
+        try:
+            controlador.definir_preferencias_toque(dialogo.escolhas())
+        except ValueError as erro:
+            QMessageBox.warning(None, idiomas.t("toque.titulo"), str(erro))
+
     def abrir_gateway() -> None:
         dialogo = DialogoGateway(
             None,
@@ -686,7 +822,7 @@ def main() -> int:
 
     def aviso_atualizacao(ha: bool) -> None:
         if ha and tray is not None:
-            tray.showMessage(NOME_APP, idiomas.t("atualizacoes.aviso_bandeja"))
+            tray.showMessage(NOME_APP, idiomas.t("atualizacoes.aviso_bandeja"), icone_app)
 
     ponte_atualizacao.disponivel.connect(aviso_atualizacao, Qt.ConnectionType.QueuedConnection)
 
@@ -751,6 +887,8 @@ def main() -> int:
     try:
         return qt.exec()
     finally:
+        interpretador.fechar()
+        rato.fechar()
         if tray is not None:
             tray.hide()  # o icone some logo, sem esperar que o Windows o limpe
         if ditado is not None:

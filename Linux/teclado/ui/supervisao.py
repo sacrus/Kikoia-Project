@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from teclado.core.seguranca import TAMANHO_MINIMO_PIN
+from teclado.ui.estilo_dialogos import aplicar_estilo_dialogo, criar_cabecalho_dialogo
 
 def rotulos_ambito() -> dict[str, str]:
     return {
@@ -79,6 +80,7 @@ class DialogoSupervisao(QDialog):
         botoes = QHBoxLayout()
         if ativa:
             botao_guardar = QPushButton(t("sup.guardar"))
+            botao_guardar.setProperty("papel", "primario")
             botao_guardar.clicked.connect(lambda _=False: self._submeter(ACAO_ATUALIZAR))
             botao_desativar = QPushButton(t("sup.desativar"))
             botao_desativar.clicked.connect(lambda _=False: self._submeter(ACAO_DESATIVAR))
@@ -87,18 +89,23 @@ class DialogoSupervisao(QDialog):
             botoes.addWidget(botao_guardar)
         else:
             botao_ativar = QPushButton(t("sup.ativar"))
+            botao_ativar.setProperty("papel", "primario")
             botao_ativar.clicked.connect(lambda _=False: self._submeter(ACAO_ATIVAR))
             botoes.addStretch(1)
             botoes.addWidget(botao_ativar)
-        botao_fechar = QPushButton("Fechar")
+        botao_fechar = QPushButton(t("geral.fechar"))
         botao_fechar.clicked.connect(self.reject)
         botoes.addWidget(botao_fechar)
 
         raiz = QVBoxLayout(self)
+        raiz.setContentsMargins(18, 16, 18, 16)
+        raiz.setSpacing(12)
+        raiz.addLayout(criar_cabecalho_dialogo(t("sup.titulo"), icone="supervisao"))
         raiz.addWidget(titulo)
         raiz.addLayout(caixa_ambito)
         raiz.addLayout(caixa_pin)
         raiz.addLayout(botoes)
+        aplicar_estilo_dialogo(self, cor_destaque="#4F46E5")
 
     def _ambito_escolhido(self) -> list[str]:
         return [chave for chave, cb in self._checks.items() if cb.isChecked()]

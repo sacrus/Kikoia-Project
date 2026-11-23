@@ -18,7 +18,7 @@ from typing import Any
 
 from .paths import RAIZ
 
-VERSAO = "0.1.1"
+VERSAO = "1.0.0"
 # "dono/repositorio" no GitHub. Enquanto estiver a None, a verificacao do teclado fica desativada.
 REPOSITORIO: str | None = "sacrus/Kikoia-Project"
 TIMEOUT_S = 8

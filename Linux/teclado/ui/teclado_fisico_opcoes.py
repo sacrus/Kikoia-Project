@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from teclado.core.idiomas import t
+from teclado.ui.estilo_dialogos import aplicar_estilo_dialogo, criar_cabecalho_dialogo
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -45,6 +46,9 @@ class DialogoTecladoFisico(QDialog):
         caixa.rejected.connect(self.reject)
 
         raiz = QVBoxLayout(self)
+        raiz.setContentsMargins(18, 16, 18, 16)
+        raiz.setSpacing(12)
+        raiz.addLayout(criar_cabecalho_dialogo(t("tecladofisico.titulo"), icone="sugestoes"))
         raiz.addWidget(explicacao)
         raiz.addWidget(self._ativar)
         raiz.addWidget(self._aprender)
@@ -55,6 +59,7 @@ class DialogoTecladoFisico(QDialog):
             self._aprender.setEnabled(False)
             raiz.addWidget(aviso)
         raiz.addWidget(caixa)
+        aplicar_estilo_dialogo(self, cor_destaque="#0D9488")
 
     def _confirmar(self) -> None:
         # Ligar pela primeira vez pede confirmacao explicita: e uma funcao sensivel.

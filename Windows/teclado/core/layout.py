@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -26,10 +27,15 @@ from teclado.core.saida import ACOES, TECLAS_ESPECIAIS
 EXTENSAO = ".kblayout.json"
 # "texto": escreve caracteres; "tecla": tecla especial (ver TECLAS_ESPECIAIS);
 # "modificador": altera o comportamento da proxima tecla (ex.: shift).
-TIPOS_ACAO = frozenset({"texto", "tecla", "modificador", "acento", "multitoque", "navegar", "acao", "comando"})
+TIPOS_ACAO = frozenset({"texto", "tecla", "modificador", "acento", "multitoque", "navegar", "acao", "comando", "quadro"})
 # "navegar": valor = nome do teclado de destino (ou NAVEGAR_ANTERIOR).
 # "acao": acao de edicao (ver ACOES em teclado/core/saida).
 NAVEGAR_ANTERIOR = "__anterior__"
+# "navegar" com este valor: volta ao teclado que estava ativo antes de o Quadro Interativo ficar em foco.
+NAVEGAR_BASE = "__base__"
+# "quadro": valor = identificador de uma acao do catalogo do Quadro (ver quadro/acoes.py).
+ID_QUADRO = re.compile(r"[a-z0-9_.]{1,40}")
+ID_ICONE = re.compile(r"[a-z0-9_-]{1,40}")
 MAX_NOME_TECLADO = 40
 MAX_ROTULO_ATALHO = 20
 MODIFICADORES = frozenset({"shift", "ctrl"})
@@ -62,6 +68,8 @@ class Tecla:
     shift: str | None = None
     # Idiomas em que a tecla aparece (None = em todos). Ex.: o ñ so existe com o espanhol selecionado.
     idiomas: frozenset[str] | None = None
+    # Icone desenhado na tecla, em vez do texto (None = so texto). O texto fica como dica.
+    icone: str | None = None
 
 
 @dataclass(frozen=True)
@@ -106,7 +114,7 @@ def _tecla(dados: object, contexto: str) -> Tecla:
     tipo = acao_dados.get("tipo")
     if tipo not in TIPOS_ACAO:
         raise LayoutInvalido(f"{contexto}: tipo de acao invalido ({tipo!r}).")
-    limite_valor = MAX_NOME_TECLADO if tipo in ("navegar", "comando") else MAX_TEXTO
+    limite_valor = MAX_NOME_TECLADO if tipo in ("navegar", "comando", "quadro") else MAX_TEXTO
     valor = _texto(acao_dados, "valor", limite_valor, contexto)
     if tipo == "tecla" and valor not in TECLAS_ESPECIAIS:
         raise LayoutInvalido(f"{contexto}: tecla especial desconhecida ({valor!r}).")
@@ -114,6 +122,8 @@ def _tecla(dados: object, contexto: str) -> Tecla:
         raise LayoutInvalido(f"{contexto}: modificador desconhecido ({valor!r}).")
     if tipo == "acento" and valor not in ACENTOS:
         raise LayoutInvalido(f"{contexto}: acento desconhecido ({valor!r}).")
+    if tipo == "quadro" and not ID_QUADRO.fullmatch(valor):
+        raise LayoutInvalido(f"{contexto}: identificador do Quadro invalido ({valor!r}).")
     if tipo == "comando" and not ID_COMANDO.fullmatch(valor):
         raise LayoutInvalido(f"{contexto}: identificador de comando invalido ({valor!r}).")
     if tipo == "acao" and valor not in ACOES:
@@ -138,7 +148,11 @@ def _tecla(dados: object, contexto: str) -> Tecla:
             raise LayoutInvalido(f"{contexto}: 'idiomas' deve ser uma lista de codigos de idioma.")
         idiomas = frozenset(idiomas)
 
-    return Tecla(rotulo=rotulo, acao=Acao(tipo, valor), largura=float(largura), shift=shift, idiomas=idiomas)
+    icone = dados.get("icone")
+    if icone is not None and (not isinstance(icone, str) or not ID_ICONE.fullmatch(icone)):
+        raise LayoutInvalido(f"{contexto}: 'icone' deve ser um nome de icone com 1 a 40 letras, numeros, '-' ou '_'.")
+
+    return Tecla(rotulo=rotulo, acao=Acao(tipo, valor), largura=float(largura), shift=shift, idiomas=idiomas, icone=icone)
 
 
 def validar_tecla(dados: object, contexto: str = "Tecla") -> Tecla:

@@ -44,6 +44,7 @@ exe = EXE(
     name="Kikoia",
     console=False,
     disable_windowed_traceback=False,
+    icon=str(RAIZ / "data" / "icone" / "kikoia.ico") if sys.platform == "win32" else None,
 )
 
 coll = COLLECT(

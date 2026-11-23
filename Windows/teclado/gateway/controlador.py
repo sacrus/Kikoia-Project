@@ -103,6 +103,14 @@ class ControladorGateway:
         if self.ativo:
             self._servidor.atualizar_teclado(modelo)
 
+    def atualizar_modo_touchpad(self, modo: str) -> None:
+        if self.ativo:
+            self._servidor.atualizar_modo_touchpad(modo)
+
+    def atualizar_icones(self, imagens: dict[str, str], coloridos: set[str]) -> None:
+        if self.ativo:
+            self._servidor.atualizar_icones(imagens, coloridos)
+
     def atualizar_sugestoes(self, palavras: list[str]) -> None:
         if self.ativo:
             self._servidor.atualizar_sugestoes(palavras)

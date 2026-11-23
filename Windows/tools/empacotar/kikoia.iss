@@ -32,6 +32,7 @@ Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
 UninstallDisplayIcon={app}\Kikoia.exe
+SetupIconFile=..\..\data\icone\kikoia.ico
 UninstallDisplayName={#NomeApp}
 CloseApplications=yes
 RestartApplications=no

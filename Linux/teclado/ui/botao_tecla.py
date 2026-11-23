@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from PySide6.QtGui import QFont, QFontMetrics
+from PySide6.QtCore import QSize
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QPushButton
 
 TAMANHO_MINIMO = 7  # pixeis: abaixo disto o texto ja nao se le
@@ -27,12 +28,38 @@ def _quebrar(texto: str, metrica: QFontMetrics, largura: int) -> list[str] | Non
     return linhas or [texto]
 
 
+def colorir(imagem: QPixmap, cor: str) -> QPixmap:
+    """Pinta um icone monocromatico com a cor indicada, mantendo a transparencia."""
+    resultado = imagem.toImage().convertToFormat(QImage.Format.Format_ARGB32)
+    pintor = QPainter(resultado)
+    pintor.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+    pintor.fillRect(resultado.rect(), QColor(cor))
+    pintor.end()
+    return QPixmap.fromImage(resultado)
+
+
 class BotaoTecla(QPushButton):
     def __init__(self, texto: str, tamanho_base: int) -> None:
         super().__init__(texto)
         self._texto = texto
         self._base = tamanho_base
         self._tamanho_atual = tamanho_base
+        self._icone = False
+
+    def definir_icone(self, imagem: QPixmap) -> None:
+        """Mostra um icone na tecla (sem texto). O tamanho acompanha o da tecla."""
+        self._icone = True
+        self._imagem = imagem
+        self.setText("")
+        self._texto = ""
+        self._ajustar_icone()
+
+    def _ajustar_icone(self) -> None:
+        if not self._icone:
+            return
+        lado = int(min(self.width(), self.height()) * 0.6)
+        self.setIcon(QIcon(self._imagem))
+        self.setIconSize(QSize(max(8, lado), max(8, lado)))
 
     def definir_texto(self, texto: str) -> None:
         """Muda o texto da tecla (ex.: simbolo com Shift) e volta a ajustar o tamanho."""
@@ -47,6 +74,7 @@ class BotaoTecla(QPushButton):
     def resizeEvent(self, evento) -> None:  # noqa: N802 (nome exigido pelo Qt)
         super().resizeEvent(evento)
         self.ajustar()
+        self._ajustar_icone()
 
     def ajustar(self) -> None:
         """Escolhe o maior tamanho (do base ate ao minimo) em que o texto cabe no botao."""

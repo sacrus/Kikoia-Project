@@ -8,6 +8,8 @@ data class Tecla(
     val tipo: String,
     val valor: String,
     val largura: Double,
+    /** Nome do icone a mostrar em vez do rotulo (ver IconesTeclado). */
+    val icone: String? = null,
 )
 
 data class Teclado(
@@ -33,5 +35,6 @@ private fun tecla(dados: Map<*, *>): Tecla? {
     val valor = acao["valor"] as? String ?: return null
     if (tipo == "acao" && valor in ACOES_DE_JANELA) return null
     val largura = (dados["largura"] as? Number)?.toDouble() ?: 1.0
-    return Tecla(rotulo, tipo, valor, largura)
+    val icone = dados["icone"] as? String
+    return Tecla(rotulo, tipo, valor, largura, icone)
 }

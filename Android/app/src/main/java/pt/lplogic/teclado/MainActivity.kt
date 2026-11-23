@@ -11,14 +11,12 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,8 +28,49 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.Canvas
+import android.app.Activity
+import android.view.WindowManager
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.input.pointer.changedToDown
+import androidx.compose.ui.input.pointer.changedToUp
+import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.semantics.Role
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -70,6 +109,7 @@ import androidx.compose.ui.semantics.semantics
 import android.content.Intent
 import android.net.Uri
 import pt.lplogic.teclado.rede.Atualizacao
+import pt.lplogic.teclado.modelo.Tecla
 import pt.lplogic.teclado.modelo.Teclado
 import pt.lplogic.teclado.rede.Confianca
 import pt.lplogic.teclado.rede.Confiancas
@@ -98,7 +138,24 @@ class MainActivity : ComponentActivity() {
                 "claro" -> false
                 else -> isSystemInDarkTheme()
             }
-            MaterialTheme(colorScheme = if (escuro) darkColorScheme() else lightColorScheme()) {
+            val esquema = if (escuro) {
+                darkColorScheme(
+                    primary = Color(0xFF3B82F6),
+                    onPrimary = Color.White,
+                    background = Color(0xFF16181D),
+                    surface = Color(0xFF1E222A),
+                    onSurface = Color(0xFFF1F5F9),
+                )
+            } else {
+                lightColorScheme(
+                    primary = Color(0xFF2563EB),
+                    onPrimary = Color.White,
+                    background = Color(0xFFF1F4F8),
+                    surface = Color(0xFFFFFFFF),
+                    onSurface = Color(0xFF1A1D23),
+                )
+            }
+            MaterialTheme(colorScheme = esquema) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     AppTeclado(
                         preferencias = preferencias,
@@ -130,7 +187,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Tela { PERMISSOES, PROCURAR, CODIGO, TECLADO }
+private enum class Tela { PERMISSOES, PROCURAR, CODIGO, TECLADO, TOUCHPAD }
 
 /** Permissoes pedidas na primeira utilizacao: rede local (Android 13+) e Bluetooth (Android 12+). */
 private fun permissoesNecessarias(): Array<String> {
@@ -181,6 +238,36 @@ fun AppTeclado(preferencias: SharedPreferences, escuro: Boolean, onAlternarTema:
     var interruptores by remember { mutableStateOf<Map<String, Any?>>(emptyMap()) }
     // Verificacao de atualizacoes: uma vez ao abrir a app, se estiver ativa. So avisa.
     var verificarAtualizacoes by remember { mutableStateOf(preferencias.getBoolean("verificar_atualizacoes", true)) }
+    // Poupanca de energia: depois de X minutos sem toques, aviso com contagem e ecra preto (ver PoupancaEcra).
+    var poupancaMinutos by remember { mutableStateOf(preferencias.getInt("poupanca_minutos", 5)) }
+    var ultimaAtividade by remember { mutableStateOf(System.currentTimeMillis()) }
+    var poupancaFase by remember { mutableStateOf(0) } // 0 normal, 1 aviso, 2 ecra apagado
+    var segundosPoupanca by remember { mutableStateOf(POUPANCA_SEGUNDOS) }
+    val ligadoRemoto = ligacao != null && tela != Tela.PROCURAR
+    LaunchedEffect(ultimaAtividade, poupancaMinutos, ligadoRemoto) {
+        poupancaFase = 0
+        if (!ligadoRemoto || poupancaMinutos == 0) return@LaunchedEffect
+        delay(poupancaMinutos * 60_000L)
+        poupancaFase = 1
+        for (s in POUPANCA_SEGUNDOS downTo 1) {
+            segundosPoupanca = s
+            delay(1_000L)
+        }
+        poupancaFase = 2
+    }
+    // Enquanto o teclado remoto esta ligado, o ecra nao adormece sozinho (a poupanca e feita pela app).
+    // Com o ecra apagado por poupanca, o brilho fica no minimo.
+    LaunchedEffect(ligadoRemoto, poupancaFase) {
+        val janela = (contexto as? Activity)?.window ?: return@LaunchedEffect
+        if (ligadoRemoto) {
+            janela.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            janela.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        janela.attributes = janela.attributes.also {
+            it.screenBrightness = if (poupancaFase == 2) 0.01f else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+        }
+    }
     var atualizacao by remember { mutableStateOf<Atualizacao.Nova?>(null) }
     var avisoAtualizacaoFechado by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -236,7 +323,7 @@ fun AppTeclado(preferencias: SharedPreferences, escuro: Boolean, onAlternarTema:
                 // Ligacao de confianca que estava ativa (ou a reconectar) cai: tenta de novo, sem codigo.
                 val deveReconectar = endereco != null && d != null && d.endereco == endereco &&
                     Confiancas.ler(preferencias, endereco) != null &&
-                    (tela == Tela.TECLADO || reconectando)
+                    (tela == Tela.TECLADO || tela == Tela.TOUCHPAD || reconectando)
                 if (deveReconectar && tentativasReconexao < MAX_TENTATIVAS_RECONEXAO) {
                     reconectando = true
                     tentativasReconexao += 1
@@ -249,7 +336,7 @@ fun AppTeclado(preferencias: SharedPreferences, escuro: Boolean, onAlternarTema:
                 } else {
                     pararReconexao()
                     erro = motivo
-                    if (tela == Tela.TECLADO) tela = Tela.PROCURAR
+                    if (tela == Tela.TECLADO || tela == Tela.TOUCHPAD) tela = Tela.PROCURAR
                 }
             }
         }
@@ -322,6 +409,19 @@ fun AppTeclado(preferencias: SharedPreferences, escuro: Boolean, onAlternarTema:
         iniciarLigacao(d, null, confianca)
     }
 
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            // Regista qualquer toque como atividade, sem consumir o evento (o toque continua para o ecra).
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        awaitPointerEvent(PointerEventPass.Initial)
+                        ultimaAtividade = System.currentTimeMillis()
+                    }
+                }
+            },
+    ) {
     when (tela) {
         Tela.PERMISSOES -> EcraPermissoes(onContinuar = {
             val pedir = permissoesNecessarias().filter {
@@ -378,6 +478,12 @@ fun AppTeclado(preferencias: SharedPreferences, escuro: Boolean, onAlternarTema:
                 verificarAtualizacoes = !verificarAtualizacoes
                 preferencias.edit().putBoolean("verificar_atualizacoes", verificarAtualizacoes).apply()
             },
+            poupancaMinutos = poupancaMinutos,
+            onAlternarPoupanca = {
+                val opcoes = listOf(0, 1, 2, 5, 10, 15, 30)
+                poupancaMinutos = opcoes[(opcoes.indexOf(poupancaMinutos) + 1) % opcoes.size]
+                preferencias.edit().putInt("poupanca_minutos", poupancaMinutos).apply()
+            },
             onEscolherBt = { dispositivo ->
                 val d = Destino(dispositivo.name ?: recurso(R.string.and_computador), dispositivo.address) { lig ->
                     TransporteBluetooth(dispositivo, lig).ligar()
@@ -405,6 +511,12 @@ fun AppTeclado(preferencias: SharedPreferences, escuro: Boolean, onAlternarTema:
             onVoltar = { tela = Tela.PROCURAR },
         )
 
+        Tela.TOUCHPAD -> EcraTouchpad(
+            onEvento = { acao, id, x, y, area -> ligacao?.enviarToque(acao, id, x, y, area) },
+            onDimensoes = { largura, altura -> ligacao?.enviarDimensoes(largura, altura) },
+            onVoltar = { tela = Tela.TECLADO },
+        )
+
         Tela.TECLADO -> EcraTeclado(
             nomeComputador = (destino?.nome ?: "") +
                 if (reconectando) " · " + recurso(R.string.and_reconectando) else "",
@@ -421,6 +533,7 @@ fun AppTeclado(preferencias: SharedPreferences, escuro: Boolean, onAlternarTema:
             escuro = escuro,
             onAlternarTema = onAlternarTema,
             onTecla = ::premirTecla,
+            onTouchpad = { tela = Tela.TOUCHPAD },
             onDesligar = {
                 pararReconexao()
                 ligacao?.fechar()
@@ -429,7 +542,40 @@ fun AppTeclado(preferencias: SharedPreferences, escuro: Boolean, onAlternarTema:
             },
         )
     }
+    PoupancaEcra(fase = poupancaFase, segundos = segundosPoupanca)
+    }
 }
+
+/** Modo de poupanca: aviso com contagem e, depois, ecra preto. Um toque cancela o aviso ou repoe a sessao. */
+@Composable
+private fun PoupancaEcra(fase: Int, segundos: Int) {
+    if (fase == 0) return
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            // Bloqueia os toques enquanto o aviso ou o ecra preto estao visiveis (o toque ja foi registado).
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        awaitPointerEvent().changes.forEach { it.consume() }
+                    }
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        if (fase == 1) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
+                Text(recurso(R.string.and_poupanca_aviso), color = Color.White, fontSize = 20.sp, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(16.dp))
+                Text(recurso(R.string.and_poupanca_contagem, segundos), color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+/** Segundos de aviso antes de o ecra ficar preto na poupanca de energia. */
+private const val POUPANCA_SEGUNDOS = 20
 
 @Composable
 private fun AvisoHorizontal(visivel: Boolean, onFechar: () -> Unit) {
@@ -498,6 +644,8 @@ private fun EcraProcurar(
     onFecharAtualizacao: () -> Unit,
     verificarAtualizacoes: Boolean,
     onAlternarVerificacao: () -> Unit,
+    poupancaMinutos: Int,
+    onAlternarPoupanca: () -> Unit,
 ) {
     var avisoVisto by remember { mutableStateOf(false) }
     var mostrarAvisoWifi by remember { mutableStateOf(false) }
@@ -533,6 +681,13 @@ private fun EcraProcurar(
         TextButton(onClick = onAlternarVerificacao) {
             Text(
                 recurso(if (verificarAtualizacoes) R.string.and_atualizacoes_on else R.string.and_atualizacoes_off),
+                fontSize = 14.sp,
+            )
+        }
+        TextButton(onClick = onAlternarPoupanca) {
+            Text(
+                if (poupancaMinutos == 0) recurso(R.string.and_poupanca_desligada)
+                else recurso(R.string.and_poupanca_valor, poupancaMinutos),
                 fontSize = 14.sp,
             )
         }
@@ -669,26 +824,390 @@ private fun EcraCodigo(
  * Ecra do teclado: so o teclado ativo do computador, em quase todo o ecra.
  * Cabecalho minimo, faixa de sugestoes (quando houver) e teclas que ocupam todo o espaco.
  */
-/** Interruptor pequeno do cabecalho: cinzento quando desligado, colorido quando ligado. */
+/**
+ * Touchpad: a superficie do ecra envia os toques ao PC, que move e clica o rato
+ * (ver teclado/core/toque.py). Posicoes normalizadas entre 0 e 10000.
+ */
 @Composable
-private fun IconeAlternar(
+private fun EcraTouchpad(
+    onEvento: (acao: String, id: Int, x: Int, y: Int, area: String?) -> Unit,
+    onDimensoes: (larguraMm: Int, alturaMm: Int) -> Unit,
+    onVoltar: () -> Unit,
+) {
+    val contexto = LocalContext.current
+    val xdpi = contexto.resources.displayMetrics.xdpi
+    val ydpi = contexto.resources.displayMetrics.ydpi
+    // Barra de deslocamento: 1,2 cm no lado direito, qualquer que seja o aparelho.
+    val barraPx = BARRA_DESLOCAMENTO_MM / 25.4f * xdpi
+    var tamanho by remember { mutableStateOf(IntSize.Zero) }
+    val dedosAtivos = remember { HashSet<Int>() }
+    // No Quadro Interativo o touchpad tem uma so area e explica o uso de 1 e 2 dedos.
+    val noQuadro = ModoTouchpad.noQuadro()
+    LaunchedEffect(tamanho) {
+        if (tamanho.width > 0 && tamanho.height > 0) {
+            onDimensoes((tamanho.width / xdpi * 25.4f).toInt(), (tamanho.height / ydpi * 25.4f).toInt())
+        }
+    }
+    // Ao sair do touchpad, os dedos que ainda estejam no ecra sao levantados no PC.
+    DisposableEffect(Unit) {
+        onDispose { for (id in dedosAtivos.toList()) onEvento("up", id, 0, 0, null) }
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .onSizeChanged { tamanho = it }
+            .pointerInput(onEvento, barraPx) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val evento = awaitPointerEvent()
+                        val largura = size.width.toFloat().coerceAtLeast(1f)
+                        val altura = size.height.toFloat().coerceAtLeast(1f)
+                        val quadro = ModoTouchpad.noQuadro()
+                        val presentes = HashSet<Int>()
+                        for (mudanca in evento.changes) {
+                            val id = (mudanca.id.value % 32).toInt()
+                            presentes.add(id)
+                            val x = (mudanca.position.x / largura * 10000f).toInt().coerceIn(0, 10000)
+                            val y = (mudanca.position.y / altura * 10000f).toInt().coerceIn(0, 10000)
+                            // Cada evento lista todos os dedos: um dedo que ja nao esta premido fica levantado,
+                            // mesmo que o levantamento anterior se tenha perdido (ex.: gesto de 3 dedos cancelado pelo sistema).
+                            if (!mudanca.pressed) {
+                                if (dedosAtivos.remove(id)) onEvento("up", id, x, y, null)
+                            } else if (dedosAtivos.add(id)) {
+                                // A area e decidida no inicio do toque: barra, esquerda ou direita.
+                                // No Quadro nao ha barra nem lados: toda a superficie e a mesma area.
+                                val area = when {
+                                    quadro -> "esquerda"
+                                    mudanca.position.x >= largura - barraPx -> "barra"
+                                    mudanca.position.x < (largura - barraPx) / 2f -> "esquerda"
+                                    else -> "direita"
+                                }
+                                onEvento("down", id, x, y, area)
+                            } else if (mudanca.positionChanged()) {
+                                onEvento("move", id, x, y, null)
+                            }
+                            mudanca.consume()
+                        }
+                        // Dedos que desapareceram do evento (gesto cancelado pelo sistema) contam como levantados.
+                        for (id in dedosAtivos.filter { it !in presentes }) {
+                            dedosAtivos.remove(id)
+                            onEvento("up", id, 0, 0, null)
+                        }
+                    }
+                }
+            },
+    ) {
+        if (noQuadro) {
+            Box(
+                modifier = Modifier.fillMaxSize()
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.06f)),
+            )
+            InstrucoesQuadro(modifier = Modifier.align(Alignment.Center))
+        } else {
+            Row(modifier = Modifier.fillMaxSize()) {
+                Box(
+                    modifier = Modifier.weight(1f).fillMaxHeight()
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.06f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(recurso(R.string.and_touchpad_esquerdo), fontSize = 20.sp)
+                }
+                Box(
+                    modifier = Modifier.weight(1f).fillMaxHeight()
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(recurso(R.string.and_touchpad_direito), fontSize = 20.sp)
+                }
+                Box(
+                    modifier = Modifier
+                        .width(with(LocalDensity.current) { barraPx.toDp() })
+                        .fillMaxHeight()
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    // Riscos horizontais, como a roda do rato, com setas discretas no topo e na base.
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val espaco = 14.dp.toPx()
+                        val cor = Color.Gray.copy(alpha = 0.5f)
+                        var y = size.height * 0.2f
+                        while (y < size.height * 0.8f) {
+                            drawLine(
+                                color = cor,
+                                start = Offset(size.width * 0.2f, y),
+                                end = Offset(size.width * 0.8f, y),
+                                strokeWidth = 2.dp.toPx(),
+                            )
+                            y += espaco
+                        }
+                    }
+                    Text(
+                        "",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                        modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
+                    )
+                    Text(
+                        "",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
+                    )
+                }
+            }
+        }
+        TextButton(onClick = onVoltar, modifier = Modifier.align(Alignment.TopStart).padding(8.dp)) {
+            Text(recurso(R.string.and_voltar_teclado), fontSize = 16.sp)
+        }
+        if (!noQuadro) {
+            Text(
+                recurso(R.string.and_touchpad_dica),
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 56.dp, start = 24.dp, end = 24.dp),
+            )
+        }
+    }
+}
+
+/** Tres cartoes com desenhos (sem texto): desenhar com 1 dedo, mover com 2 dedos, clicar com um toque. */
+@Composable
+private fun InstrucoesQuadro(modifier: Modifier = Modifier) {
+    val cor = MaterialTheme.colorScheme.onSurface
+    val fundo = MaterialTheme.colorScheme.surface
+    Row(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+    ) {
+        CartaoInstrucao(fundo) { desenharUmDedo(cor) }
+        CartaoInstrucao(fundo) { desenharDoisDedos(cor) }
+        CartaoInstrucao(fundo) { desenharToque(cor) }
+    }
+}
+
+@Composable
+private fun CartaoInstrucao(fundo: Color, desenho: DrawScope.() -> Unit) {
+    Canvas(
+        modifier = Modifier.size(104.dp).clip(RoundedCornerShape(16.dp)).background(fundo.copy(alpha = 0.9f)),
+    ) { desenho() }
+}
+
+/** 1 dedo a arrastar: um traco ondulado (desenhar). */
+private fun DrawScope.desenharUmDedo(cor: Color) {
+    val s = size.minDimension
+    drawCircle(cor, radius = s * 0.09f, center = Offset(s * 0.26f, s * 0.5f))
+    val traco = Path().apply {
+        moveTo(s * 0.4f, s * 0.5f)
+        cubicTo(s * 0.52f, s * 0.26f, s * 0.68f, s * 0.74f, s * 0.86f, s * 0.5f)
+    }
+    drawPath(traco, cor, style = Stroke(width = s * 0.07f, cap = StrokeCap.Round))
+}
+
+/** 2 dedos: o cursor move-se numa seta, sem traco (mover). */
+private fun DrawScope.desenharDoisDedos(cor: Color) {
+    val s = size.minDimension
+    drawCircle(cor, radius = s * 0.08f, center = Offset(s * 0.2f, s * 0.46f))
+    drawCircle(cor, radius = s * 0.08f, center = Offset(s * 0.2f, s * 0.6f))
+    drawLine(cor, Offset(s * 0.42f, s * 0.53f), Offset(s * 0.86f, s * 0.53f), strokeWidth = s * 0.06f, cap = StrokeCap.Round)
+    drawLine(cor, Offset(s * 0.86f, s * 0.53f), Offset(s * 0.74f, s * 0.41f), strokeWidth = s * 0.06f, cap = StrokeCap.Round)
+    drawLine(cor, Offset(s * 0.86f, s * 0.53f), Offset(s * 0.74f, s * 0.65f), strokeWidth = s * 0.06f, cap = StrokeCap.Round)
+}
+
+/** Toque breve: um ponto com um anel a pulsar (clicar). */
+private fun DrawScope.desenharToque(cor: Color) {
+    val s = size.minDimension
+    drawCircle(cor, radius = s * 0.11f, center = Offset(s * 0.5f, s * 0.5f))
+    drawCircle(cor, radius = s * 0.28f, center = Offset(s * 0.5f, s * 0.5f), style = Stroke(width = s * 0.05f))
+}
+
+/** Largura da barra de deslocamento do touchpad, em milimetros. */
+private const val BARRA_DESLOCAMENTO_MM = 12f
+
+/** Paleta visual do teclado no telemovel, alinhada com os temas Claro e Escuro do PC. */
+private data class PaletaTeclado(
+    val fundo: Color,
+    val barraTopo: Color,
+    val tecla: Color,
+    val teclaEspecial: Color,
+    val texto: Color,
+    val textoSuave: Color,
+    val borda: Color,
+    val relevo: Color,
+    val sugestao: Color,
+    val utilFundo: Color,
+    val ativoFundo: Color,
+    val ativoBorda: Color,
+    val ativoCor: Color,
+    val premida: Color,
+    val textoPremido: Color,
+)
+
+private val PALETA_CLARA = PaletaTeclado(
+    fundo = Color(0xFFD5DBE3),
+    barraTopo = Color(0xFFE2E6EC),
+    tecla = Color(0xFFFFFFFF),
+    teclaEspecial = Color(0xFFBEC6D1),
+    texto = Color(0xFF1A1D23),
+    textoSuave = Color(0xFF5A6270),
+    borda = Color(0xFFB7BFC9),
+    relevo = Color(0xFF9EA6B2),
+    sugestao = Color(0xFFBEC6D1),
+    utilFundo = Color(0xFFEBEEF3),
+    ativoFundo = Color(0x2416A34A),
+    ativoBorda = Color(0x9916A34A),
+    ativoCor = Color(0xFF16A34A),
+    premida = Color(0xFF2563EB),
+    textoPremido = Color(0xFFFFFFFF),
+)
+
+private val PALETA_ESCURA = PaletaTeclado(
+    fundo = Color(0xFF16181D),
+    barraTopo = Color(0xFF1D2027),
+    tecla = Color(0xFF2B2F38),
+    teclaEspecial = Color(0xFF20242C),
+    texto = Color(0xFFF1F5F9),
+    textoSuave = Color(0xFF94A3B8),
+    borda = Color(0xFF3A3F4B),
+    relevo = Color(0xFF0A0C0F),
+    sugestao = Color(0xFF252932),
+    utilFundo = Color(0xFF22262E),
+    ativoFundo = Color(0x3222C55E),
+    ativoBorda = Color(0xA04ADE80),
+    ativoCor = Color(0xFF22C55E),
+    premida = Color(0xFF3B82F6),
+    textoPremido = Color(0xFFFFFFFF),
+)
+
+private fun ehTeclaDeEscrita(tecla: Tecla): Boolean {
+    if (tecla.tipo == "texto" || tecla.tipo == "multitoque" || tecla.tipo == "acento") return true
+    if (tecla.tipo == "tecla" && tecla.valor == "espaco") return true
+    return false
+}
+
+/** Pilula compacta na barra superior: discreta quando desligada, verde suave quando ativa. */
+@Composable
+private fun PilulaTopo(
     simbolo: String,
     ativo: Boolean,
     habilitado: Boolean,
     descricao: String,
+    paleta: PaletaTeclado,
     onClick: () -> Unit,
 ) {
-    TextButton(
-        onClick = onClick,
-        enabled = habilitado,
-        contentPadding = PaddingValues(horizontal = 6.dp),
-        modifier = Modifier.semantics { contentDescription = descricao },
+    val forma = RoundedCornerShape(50)
+    val fundo = if (ativo) paleta.ativoFundo else paleta.utilFundo
+    val borda = if (ativo) paleta.ativoBorda else paleta.borda.copy(alpha = 0.7f)
+    val alfa = if (habilitado) 1f else 0.38f
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier
+            .height(30.dp)
+            .clip(forma)
+            .background(fundo.copy(alpha = fundo.alpha * alfa))
+            .border(1.dp, borda.copy(alpha = borda.alpha * alfa), forma)
+            .clickable(enabled = habilitado, role = Role.Button, onClick = onClick)
+            .padding(horizontal = 9.dp)
+            .semantics { contentDescription = descricao },
     ) {
         Text(
             simbolo,
-            fontSize = 16.sp,
-            color = if (ativo) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+            fontSize = 14.sp,
+            color = (if (ativo) paleta.ativoCor else paleta.texto).copy(alpha = alfa),
         )
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(forma)
+                .background((if (ativo) paleta.ativoCor else paleta.textoSuave.copy(alpha = 0.45f)).copy(alpha = alfa)),
+        )
+    }
+}
+
+/** Botao de utilidade compacto na barra superior (Touchpad, Tema, Desligar). */
+@Composable
+private fun BotaoUtilTopo(
+    rotulo: String,
+    descricao: String,
+    paleta: PaletaTeclado,
+    onClick: () -> Unit,
+) {
+    val forma = RoundedCornerShape(9.dp)
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .height(30.dp)
+            .clip(forma)
+            .background(paleta.utilFundo)
+            .border(1.dp, paleta.borda.copy(alpha = 0.7f), forma)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 10.dp)
+            .semantics { contentDescription = descricao },
+    ) {
+        Text(rotulo, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = paleta.texto)
+    }
+}
+
+/** Tecla do teclado com hierarquia visual (escrita vs especial) e relevo inferior subtil. */
+@Composable
+private fun TeclaVisual(
+    tecla: Tecla,
+    paleta: PaletaTeclado,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val interacao = remember { MutableInteractionSource() }
+    val premida by interacao.collectIsPressedAsState()
+    val forma = RoundedCornerShape(9.dp)
+    val escrita = ehTeclaDeEscrita(tecla)
+    val corFundo = when {
+        premida -> paleta.premida
+        escrita -> paleta.tecla
+        else -> paleta.teclaEspecial
+    }
+    val corTexto = if (premida) paleta.textoPremido else paleta.texto
+    val corBorda = if (premida) paleta.premida else paleta.borda
+
+    Box(
+        modifier = modifier
+            .clip(forma)
+            .background(if (premida) paleta.premida else paleta.relevo)
+            .clickable(interactionSource = interacao, indication = null, role = Role.Button, onClick = onClick)
+            .padding(bottom = if (premida) 0.dp else 2.dp),
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(forma)
+                .background(corFundo)
+                .border(1.dp, corBorda, forma)
+                .padding(horizontal = 4.dp, vertical = 2.dp),
+        ) {
+            CompositionLocalProvider(LocalContentColor provides corTexto) {
+                // Ler a versao dos icones: quando chegam, a tecla desenha-se de novo.
+                IconesTeclado.versao
+                val nome = tecla.icone
+                val imagem = nome?.let { IconesTeclado.bitmap(it) }
+                if (nome != null && imagem != null) {
+                    // Monocromaticos tomam a cor do texto da tecla; os coloridos mantem as suas cores.
+                    val tinta = if (IconesTeclado.colorido(nome)) null else LocalContentColor.current
+                    Image(
+                        bitmap = imagem,
+                        contentDescription = tecla.rotulo,
+                        modifier = Modifier.fillMaxHeight(0.74f).aspectRatio(1f),
+                        colorFilter = tinta?.let { ColorFilter.tint(it) },
+                    )
+                } else {
+                    TextoAdaptavel(
+                        texto = tecla.rotulo,
+                        tamanhoMaximo = 22.sp,
+                        tamanhoMinimo = 9.sp,
+                        cor = corTexto,
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -703,85 +1222,166 @@ private fun EcraTeclado(
     interruptores: Map<String, Any?>,
     onAlternarInterruptor: (nome: String, ligado: Boolean) -> Unit,
     onTecla: (tipo: String, valor: String) -> Unit,
+    onTouchpad: () -> Unit,
     onDesligar: () -> Unit,
     escuro: Boolean,
     onAlternarTema: () -> Unit,
 ) {
+    val paleta = if (escuro) PALETA_ESCURA else PALETA_CLARA
     val falar = interruptores["falar"] == true
     val falarDisponivel = interruptores["falar_disponivel"] == true
     val ditar = interruptores["ditar"] == true
     val ditarDisponivel = interruptores["ditar_disponivel"] == true
+
     Column(
-        modifier = Modifier.fillMaxSize().padding(4.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(paleta.fundo)
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
+        // Barra superior integrada com marca Kikoia, estado da ligacao, interruptores e utilidades
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth().height(36.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(42.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(paleta.barraTopo)
+                .border(1.dp, paleta.borda.copy(alpha = 0.65f), RoundedCornerShape(10.dp))
+                .padding(horizontal = 8.dp),
         ) {
+            Image(
+                painter = painterResource(if (escuro) R.drawable.logo_kikoia_escuro else R.drawable.logo_kikoia_claro),
+                contentDescription = "Kikoia",
+                contentScale = ContentScale.FillHeight,
+                modifier = Modifier.height(17.dp),
+            )
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(16.dp)
+                    .background(paleta.borda.copy(alpha = 0.7f)),
+            )
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(paleta.ativoCor),
+            )
             Text(
-                "● $nomeComputador",
+                nomeComputador,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
+                color = paleta.texto,
                 maxLines = 1,
                 modifier = Modifier.weight(1f),
             )
-            // Interruptores pequenos: sugestoes (local), falar e ditar (no computador).
-            IconeAlternar("💬", ativo = sugestoesAtivas, habilitado = true, descricao = recurso(R.string.and_sugestoes), onClick = onAlternarSugestoes)
-            IconeAlternar("🔊", ativo = falar, habilitado = falarDisponivel, descricao = recurso(R.string.and_falar)) {
+            BotaoUtilTopo(
+                rotulo = "🖱",
+                descricao = recurso(R.string.and_touchpad),
+                paleta = paleta,
+                onClick = onTouchpad,
+            )
+            PilulaTopo(
+                simbolo = "💬",
+                ativo = sugestoesAtivas,
+                habilitado = true,
+                descricao = recurso(R.string.and_sugestoes),
+                paleta = paleta,
+                onClick = onAlternarSugestoes,
+            )
+            PilulaTopo(
+                simbolo = "🔊",
+                ativo = falar,
+                habilitado = falarDisponivel,
+                descricao = recurso(R.string.and_falar),
+                paleta = paleta,
+            ) {
                 onAlternarInterruptor("falar", !falar)
             }
-            IconeAlternar("🎤", ativo = ditar, habilitado = ditarDisponivel, descricao = recurso(R.string.and_ditar)) {
+            PilulaTopo(
+                simbolo = "🎤",
+                ativo = ditar,
+                habilitado = ditarDisponivel,
+                descricao = recurso(R.string.and_ditar),
+                paleta = paleta,
+            ) {
                 onAlternarInterruptor("ditar", !ditar)
             }
-            // Sol/lua: alterna o tema, discreto no cabecalho.
-            TextButton(onClick = onAlternarTema) {
-                Text(if (escuro) "☀" else "☾", fontSize = 18.sp)
-            }
-            TextButton(onClick = onDesligar) { Text(recurso(R.string.and_desligar), fontSize = 13.sp) }
+            BotaoUtilTopo(
+                rotulo = if (escuro) "☀" else "☾",
+                descricao = if (escuro) "Tema claro" else "Tema escuro",
+                paleta = paleta,
+                onClick = onAlternarTema,
+            )
+            BotaoUtilTopo(
+                rotulo = recurso(R.string.and_desligar),
+                descricao = recurso(R.string.and_desligar),
+                paleta = paleta,
+                onClick = onDesligar,
+            )
         }
 
         // A faixa ocupa sempre o mesmo espaco enquanto as sugestoes estiverem ativas, mesmo sem palavras:
         // assim o teclado nao sobe nem desce quando as sugestoes aparecem ou desaparecem.
         if (sugestoesAtivas) {
             Row(
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(42.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 sugestoes.forEachIndexed { i, palavra ->
-                    OutlinedButton(
-                        onClick = { onSugestao(i) },
-                        modifier = Modifier.weight(1f).fillMaxHeight(),
-                        contentPadding = PaddingValues(2.dp),
+                    val formaSug = RoundedCornerShape(8.dp)
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(formaSug)
+                            .background(paleta.sugestao)
+                            .clickable(role = Role.Button) { onSugestao(i) }
+                            .padding(horizontal = 8.dp, vertical = 2.dp),
                     ) {
-                        TextoAdaptavel(palavra, tamanhoMaximo = 18.sp, tamanhoMinimo = 9.sp)
+                        TextoAdaptavel(
+                            texto = palavra,
+                            tamanhoMaximo = 16.sp,
+                            tamanhoMinimo = 10.sp,
+                            cor = paleta.texto,
+                        )
                     }
                 }
             }
         }
 
         if (teclado == null) {
-            Text(recurso(R.string.and_aguardar), fontSize = 18.sp)
+            Box(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(recurso(R.string.and_aguardar), fontSize = 18.sp, color = paleta.textoSuave)
+            }
             return@Column
         }
 
         Column(
             modifier = Modifier.weight(1f).fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             teclado.linhas.forEach { linha ->
                 Row(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
                     linha.forEach { tecla ->
-                        Button(
-                            onClick = { onTecla(tecla.tipo, tecla.valor) },
+                        TeclaVisual(
+                            tecla = tecla,
+                            paleta = paleta,
                             modifier = Modifier.weight(tecla.largura.toFloat()).fillMaxHeight(),
-                            contentPadding = PaddingValues(2.dp),
-                        ) {
-                            TextoAdaptavel(tecla.rotulo, tamanhoMaximo = 22.sp, tamanhoMinimo = 9.sp)
-                        }
+                            onClick = { onTecla(tecla.tipo, tecla.valor) },
+                        )
                     }
                 }
             }

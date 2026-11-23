@@ -43,6 +43,8 @@
     <string name="and_emparelhar">Emparelhar</string>
     <string name="and_voltar">Voltar</string>
     <string name="and_cancelar">Cancelar</string>
+    <string name="and_touchpad">Touchpad</string>
+    <string name="and_voltar_teclado">Teclado</string>
     <string name="and_reconectando">A reconectar…</string>
     <string name="and_sem_sinal">O computador deixou de responder.</string>
     <string name="and_wifi_aviso">Poderá necessitar de configurações adicionais, como configurar reencaminhamento de portas no router.</string>
@@ -57,4 +59,12 @@
     <string name="and_ver_versao">Ver</string>
     <string name="and_atualizacoes_on">Verificar atualizações: sim</string>
     <string name="and_atualizacoes_off">Verificar atualizações: não</string>
+    <string name="and_touchpad_esquerdo">Esquerdo</string>
+    <string name="and_touchpad_direito">Direito</string>
+    <string name="and_touchpad_barra">Deslocar</string>
+    <string name="and_touchpad_dica">Um dedo move o rato. Toque à esquerda ou à direita para clicar. Arraste na barra da direita para deslocar a página.</string>
+    <string name="and_poupanca_aviso">O teclado remoto irá entrar em modo de poupança de energia para proteger o seu equipamento. Toque no monitor para cancelar ou para retomar a sessão.</string>
+    <string name="and_poupanca_contagem">Em %1$d segundos</string>
+    <string name="and_poupanca_valor">Poupança de energia: %1$d min</string>
+    <string name="and_poupanca_desligada">Poupança de energia: desligada</string>
 </resources>
