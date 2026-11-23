@@ -1,34 +1,37 @@
 # Kikoia
 
-Teclado virtual para Windows e Linux, pensado para acessibilidade: escrita por clique, sugestões de palavras, voz, teclados configuráveis e controlo remoto a partir de um telemóvel Android.
+Teclado virtual para Windows e Linux, pensado para acessibilidade: escrita por clique, sugestões de palavras, voz, teclados configuráveis, integração com o Quadro Interativo e controlo remoto a partir de um telemóvel Android.
 
 > **Créditos e licenças:** [CREDITOS.md](CREDITOS.md) lista as ferramentas externas usadas, quem as fez e as obrigações ao distribuir.
 
-## Estado atual (versão 0.1.1)
+## Estado atual (versão 1.0.0)
 
 - **Windows:** completo e testado no PC principal.
-- **Linux:** funcional em sessões X11 e em Wayland com XWayland. Inclui teclado virtual (`uinput`) com o layout do sistema, Bluetooth (BlueZ), voz de Falar (Piper, uma voz por idioma), ações sobre a janela em foco, leitura da seleção e área de transferência (X11), e reserva da área de trabalho para o teclado (X11/XWayland). Foi testado numa sessão Linux. Limitações desta versão:
+- **Linux:** funcional em sessões X11 e em Wayland com XWayland. Inclui teclado virtual (`uinput`) com o layout do sistema, Bluetooth (BlueZ), voz de Falar (Piper, uma voz por idioma), ações sobre a janela em foco, leitura da seleção e área de transferência (X11), e reserva da área de trabalho para o teclado (X11/XWayland). Limitações desta versão:
   - **Teclado físico com sugestões** ainda não está disponível (só Windows).
   - A reserva da área de trabalho não funciona em aplicações Wayland nativas. As ações sobre a janela (fechar, minimizar, maximizar) e a leitura da seleção também não.
-- **Android:** app de controlo remoto, testada por Bluetooth e por Wi-Fi. O Bluetooth é o método recomendado; o Wi-Fi é uma alternativa e pode exigir configurações adicionais na rede (ver abaixo).
+- **Android:** app de controlo remoto, testada por Bluetooth e por Wi-Fi, com temas claro e escuro, modo touchpad e suporte ao Quadro Interativo. O Bluetooth é o método recomendado; o Wi-Fi é uma alternativa e pode exigir configurações adicionais na rede (ver abaixo).
 
 ## Funcionalidades
 
+- **Interface moderna e acessível:** barra superior integrada com sugestões em formato de cápsula e controlos rápidos com ícones vetoriais e texto legível (*Sugestões*, *Falar*, *Ditar*), hierarquia visual entre teclas de escrita e teclas especiais, e marca Kikoia.
 - **Teclados em ficheiros JSON** (`data/layouts/`), com ações, modificadores, acentos e toque repetido (multitoque).
-- **Editor de teclados visual**, com modelos prontos (QWERTY, numérico, mínimo, vogais, abecedário).
+- **Editor de teclados visual com arrastar e largar (drag & drop):** permite arrastar teclas na mesma linha, entre linhas ou a partir da lista de teclas, além de modelos prontos (QWERTY, numérico, mínimo, vogais, abecedário).
+- **Menu de definições em grelha visual:** acesso organizado por cartões a todas as áreas (teclados, temas, voz, telemóvel, IA, teclas personalizadas, supervisão, atualizações e Quadro Interativo), com seleção rápida de layout e tema.
 - **Shift como no teclado do sistema:** com Shift ativo, cada tecla escreve o seu símbolo (1 → `!`, ç → `Ç`). Os símbolos vêm de uma tabela por idioma e podem ser definidos tecla a tecla, no campo «Símbolo com Shift» do editor.
 - **Modificadores persistentes:** Shift e Ctrl ficam ativos até carregares noutra tecla. Assim, `Shift` → `Ctrl` → `C` envia Ctrl+Shift+C numa só combinação. Shift com setas, Home e End seleciona texto.
 - **Teclas de atalho entre teclados:** o QWERTY traz a tecla «Números», que leva ao teclado numérico.
 - **Sugestões de palavras** com base num dicionário offline (pt-PT, en, es, fr).
-- **Voz:** ditado offline com Vosk (Windows e Linux); síntese de voz (Falar) com SAPI5, só no Windows. O modelo de reconhecimento só é descarregado quando o pedires, em **Definições → Opções de voz**.
-- **Temas claro e escuro**, personalizáveis.
+- **Voz:** ditado offline com Vosk (Windows e Linux); síntese de voz (Falar) com SAPI5 no Windows e Piper no Linux. Os modelos de voz só são descarregados quando o pedires, em **Definições → Opções de voz**.
+- **Temas claro e escuro sincronizados:** personalizáveis, aplicados em todo o teclado e diálogos, e sincronizados nos dois sentidos com o Quadro Interativo (mudar o tema num atualiza automaticamente o outro).
+- **Quadro Interativo:** acesso direto a partir do menu de definições para abrir, transferir ou indicar onde o Quadro Interativo está instalado.
 - **Teclas personalizadas:** abrem programas ou ficheiros no PC. Criam-se, alteram-se e apagam-se no editor de teclados.
 - **Layout «Ações»:** traz as teclas de ação (apagar palavra e linha, selecionar, ler seleção, navegar entre janelas, minimizar, maximizar, fechar janela) e uma tecla para voltar ao QWERTY. Chega-se por ⚡, a tecla ao lado do Ctrl no QWERTY.
 - **Janela sem barra de título:** o teclado fica como uma faixa no fundo do ecrã, e as janelas acomodam-se à sua altura (Windows e Linux). Fecha-se pelo botão **Sair** ou pelo ícone da bandeja.
 - **Teclado físico com sugestões** (opcional, desligado por omissão; só Windows).
 - **Modo supervisão:** um adulto pode proteger layouts, temas e definições com código.
-- **Criação de teclados com IA** (requer ligação à internet e chave de API configurada).
-- **Controlo remoto a partir do telemóvel**, por Bluetooth ou Wi-Fi.
+- **Criação de teclados com IA** (requer ligação à internet e chave de API configurada; inclui guia passo a passo para criar conta e obter chave na OpenAI).
+- **Controlo remoto a partir do telemóvel**, por Bluetooth ou Wi-Fi, com modo teclado e modo touchpad (incluindo suporte dedicado para o Quadro Interativo).
 - **Idiomas da interface:** português (pt-PT), inglês, espanhol e francês.
 
 ## Requisitos
@@ -76,7 +79,7 @@ Depois de emparelhado, o PC e o telemóvel guardam uma ligação de confiança e
 
 Enquanto a ligação está ativa, o PC e o telemóvel trocam um sinal de vida (ping) a cada 15 segundos. Se não houver nenhuma mensagem durante 45 segundos (por exemplo, o Bluetooth caiu sem aviso), a ligação é dada como perdida: o teclado volta a aparecer no PC, e o telemóvel tenta voltar a ligar-se sozinho, com esperas crescentes, durante cerca de 10 minutos. Para parar as tentativas, carrega em **Desligar**.
 
-Os ícones do cabeçalho da app Android permitem mostrar ou ocultar as sugestões (💬), e ligar ou desligar a voz do PC (🔊 Falar e 🎤 Ditar).
+Os botões da barra superior da app Android permitem mostrar ou ocultar as sugestões, ligar ou desligar a voz do PC (Falar e Ditar) e alternar com o modo touchpad.
 
 ### Arranque automático da escuta
 
@@ -103,6 +106,7 @@ Se nenhum telemóvel se ligar nesses 5 minutos, o PC deixa de escutar.
 | Teclados e temas criados por ti | `%APPDATA%\teclado\layouts\`, `…\temas\` | `~/.local/share/teclado/layouts/`, `…/temas/` |
 | Teclas personalizadas | `%APPDATA%\teclado\comandos.json` | `~/.local/share/teclado/comandos.json` |
 | Ligações de confiança com telemóveis | `%APPDATA%\teclado\confianca.json` | `~/.local/share/teclado/confianca.json` |
+| Tema partilhado com o Quadro Interativo | `%LOCALAPPDATA%\Kikoia\tema_partilhado.json` | `~/.local/share/Kikoia/tema_partilhado.json` |
 | Registo de erros | `%APPDATA%\teclado\erros.log` | `~/.local/share/teclado/erros.log` |
 
 ## Segurança e privacidade
@@ -159,10 +163,10 @@ Os testes específicos do Linux (`tests/test_saida_linux.py`) só correm numa se
 
 ```
 teclado/        código Python (core, ui, gateway)
-  core/         editor, dicionário, layouts, símbolos com Shift, voz, arranque, supervisão
+  core/         editor, dicionário, layouts, símbolos com Shift, voz, arranque, supervisão, tema partilhado
   gateway/      protocolo, emparelhamento, confiança, Wi-Fi e Bluetooth
-  ui/           janela, editor de teclados, diálogos
-data/           layouts, temas, dicionários, idiomas
+  ui/           janela, editor de teclados, menu de definições, diálogos, estilos
+data/           layouts, temas, dicionários, idiomas, ícones e marca Kikoia
 android/        app Android (Kotlin / Compose)
 tests/          testes Python
 tools/          scripts de configuração, empacotamento e geração de dados

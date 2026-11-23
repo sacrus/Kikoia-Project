@@ -15,6 +15,8 @@ from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
+from teclado.core import tema_partilhado
+from teclado.core.tema import cor_texto_para
 from teclado.core.aplicacao import Aplicacao
 from teclado.core.dicionario import Dicionario
 from teclado.core.editor import Editor
@@ -441,6 +443,38 @@ def main() -> int:
         janela.montar(com_nomes_atuais(controlador.layout))
         sincronizar_telemovel()
 
+    ultimo_ts_tema = [0.0]
+
+    def publicar_tema_partilhado(tema) -> None:
+        escuro = cor_texto_para(tema.cor_fundo) == "#FFFFFF"
+        try:
+            ultimo_ts_tema[0] = tema_partilhado.guardar_tema(escuro, tema.nome)
+        except OSError:
+            pass
+
+    def verificar_tema_partilhado() -> None:
+        dados = tema_partilhado.ler_tema()
+        if dados is None or dados["atualizado_em"] <= ultimo_ts_tema[0]:
+            return
+        ultimo_ts_tema[0] = dados["atualizado_em"]
+        alvo = dados["tema"] if dados["tema"] in controlador.temas else ("Escuro" if dados["escuro"] else "Claro")
+        if alvo in controlador.temas and alvo != controlador.tema.nome:
+            novo = controlador.mudar_tema(alvo)
+            if novo is not None:
+                janela.aplicar_tema(novo)
+
+    # Sincroniza tema inicial com o Quadro (ou publica o tema atual do teclado).
+    _tema_inicial = tema_partilhado.ler_tema()
+    if _tema_inicial is not None:
+        verificar_tema_partilhado()
+    else:
+        publicar_tema_partilhado(controlador.tema)
+
+    timer_tema = QTimer(qt)
+    timer_tema.setInterval(1500)
+    timer_tema.timeout.connect(verificar_tema_partilhado)
+    timer_tema.start()
+
     def personalizar_tema() -> None:
         escolhas = escolher_personalizacao(None, controlador.tema)
         if escolhas is None:
@@ -448,6 +482,7 @@ def main() -> int:
         novo = controlador.personalizar(**escolhas)
         if novo is not None:
             janela.aplicar_tema(novo)
+            publicar_tema_partilhado(novo)
 
     def gerir_supervisao() -> None:
         ativa, ambito = controlador.estado_supervisao()
@@ -475,6 +510,7 @@ def main() -> int:
             novo = controlador.mudar_tema(escolhas["tema"])
             if novo is not None:
                 janela.aplicar_tema(novo)
+                publicar_tema_partilhado(novo)
         if escolhas["max_sugestoes"] != editor.max_sugestoes:
             if controlador.definir_max_sugestoes(escolhas["max_sugestoes"]):
                 editor.definir_max_sugestoes(escolhas["max_sugestoes"])

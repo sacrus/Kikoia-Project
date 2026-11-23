@@ -74,14 +74,16 @@ Aplica-se a: **Android**. As bibliotecas abaixo vão na APK, exceto os testes.
 
 ## 4. Quadro Interativo
 
-Aplica-se a: **Windows** (o Quadro só existe para Windows nesta versão).
+Aplica-se a: **Windows** (o Quadro só existe para Windows nesta versão). Os detalhes completos encontram-se também em `Board/CREDITOS.md`.
 
 | Componente | Para que serve | Licença | Como é usado |
 |---|---|---|---|
 | PySide6 | Interface gráfica | LGPL-3.0 (ver secção 1) | Incluído |
+| libjxl (`cjxl` e `djxl`, v0.13.0) | Conversão e suporte a imagens JPEG XL | BSD-3-Clause | Incluído no pacote Windows (ver `Board/tools/empacotar/LICENCA-libjxl.txt`) |
+| Openverse API | Pesquisa de imagens com licenças abertas (Creative Commons) | API/código MIT; imagens sob a licença CC de cada obra | Serviço externo consultado a pedido do utilizador |
 | GCompris | Jogo educativo para crianças. Autores: Timothée Giet e outros | AGPL-3.0 | Não incluído: descarregado do site oficial (gcompris.net), com verificação SHA-256 |
-| Solo, de Simon Tatham's Portable Puzzle Collection | Jogo de lógica (Sudoku). Copyright Simon Tatham e outros contribuidores | MIT | Não incluído: descarregado do site oficial (chiark.greenend.org.uk/~sgtatham/puzzles), com verificação SHA-256 |
-| Imagem `thumb.png` do Solo | Miniatura no catálogo | Copyright Simon Tatham (coleção MIT) | Incluída, copiada do site oficial |
+| Simon Tatham's Portable Puzzle Collection (40 jogos) | Coleção de 40 jogos de lógica (Solo, Mines, Net, Bridges, Galaxies, Untangle, entre outros). Copyright Simon Tatham e outros contribuidores | MIT | Não incluído: descarregado do site oficial (chiark.greenend.org.uk/~sgtatham/puzzles), com verificação SHA-256 |
+| Miniaturas `thumb.png` dos 40 jogos de Simon Tatham | Miniaturas no catálogo do Quadro (`Board/Resources/Games/simon-*/screenshots/thumb.png`) | Copyright Simon Tatham e outros contribuidores (coleção MIT) | Incluídas, obtidas do site oficial |
 
 ---
 
@@ -89,6 +91,7 @@ Aplica-se a: **Windows** (o Quadro só existe para Windows nesta versão).
 
 - Incluir este ficheiro em qualquer pacote distribuído (Windows, Linux, Android e repositórios).
 - **LGPL (PySide6, python-xlib):** manter os avisos de copyright e disponibilizar o texto da licença. No instalador Windows, é preciso também indicar como obter o código-fonte do PySide6 e permitir a substituição da biblioteca. *Confirmar o texto exato antes da primeira publicação do instalador.*
+- **BSD-3-Clause (libjxl):** no pacote Windows do Quadro Interativo, incluir o texto da licença `LICENCA-libjxl.txt`.
 - **GPL (piper-tts):** ver os pontos em aberto.
 - **CC BY (vozes Sharvard e SIWIS):** dar crédito aos autores, indicar que a voz foi afinada (Piper) e manter a ligação à licença.
 - **Dicionários e léxico:** ver `data/languages/LICENCAS.md`.
@@ -99,4 +102,4 @@ Aplica-se a: **Windows** (o Quadro só existe para Windows nesta versão).
 
 1. **Licença do Kikoia.** O repositório ainda não tem licença própria. Convém decidir antes da publicação, porque o `piper-tts` (GPL-3.0-or-later) e as regras da LGPL condicionam a escolha.
 2. **Voz `amy` e conjunto HiFi-TTS.** A licença não está confirmada nas fontes consultadas. Confirmar antes de publicar.
-3. **Textos completos das licenças.** Não estão incluídos. Ao publicar, convém juntar os textos das licenças usadas nos pacotes (LGPL, GPL, Apache-2.0, MIT, CC BY).
+3. **Textos completos das licenças.** Não estão incluídos (exceto `LICENCA-libjxl.txt` no Quadro). Ao publicar, convém juntar os textos das licenças usadas nos pacotes (LGPL, GPL, Apache-2.0, MIT, CC BY).
