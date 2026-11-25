@@ -119,6 +119,11 @@ class LigacaoGateway(
     fun enviarToque(acao: String, id: Int, x: Int, y: Int, area: String?): Boolean {
         val corpo = mutableMapOf<String, Any?>("acao" to acao, "dedo" to id, "x" to x, "y" to y)
         if (area != null) corpo["area"] = area
+        if (acao == "move") {
+            val s = sessao ?: return false
+            val t = transporte ?: return false
+            return t.enviarSubstituivel("move:$id", s.enviar("toque", Protocolo.novoId(), corpo))
+        }
         return enviarMensagem("toque", corpo)
     }
 

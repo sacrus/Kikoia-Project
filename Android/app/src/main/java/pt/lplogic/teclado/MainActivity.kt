@@ -86,6 +86,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -239,21 +240,46 @@ fun AppTeclado(preferencias: SharedPreferences, escuro: Boolean, onAlternarTema:
     // Verificacao de atualizacoes: uma vez ao abrir a app, se estiver ativa. So avisa.
     var verificarAtualizacoes by remember { mutableStateOf(preferencias.getBoolean("verificar_atualizacoes", true)) }
     // Poupanca de energia: depois de X minutos sem toques, aviso com contagem e ecra preto (ver PoupancaEcra).
+    // Usa AtomicLong em vez de mutableStateOf para NUNCA provocar recomposicoes a cada toque/movimento do touchpad!
     var poupancaMinutos by remember { mutableStateOf(preferencias.getInt("poupanca_minutos", 5)) }
-    var ultimaAtividade by remember { mutableStateOf(System.currentTimeMillis()) }
+    val ultimaAtividadeMs = remember { java.util.concurrent.atomic.AtomicLong(System.currentTimeMillis()) }
     var poupancaFase by remember { mutableStateOf(0) } // 0 normal, 1 aviso, 2 ecra apagado
     var segundosPoupanca by remember { mutableStateOf(POUPANCA_SEGUNDOS) }
     val ligadoRemoto = ligacao != null && tela != Tela.PROCURAR
-    LaunchedEffect(ultimaAtividade, poupancaMinutos, ligadoRemoto) {
+    LaunchedEffect(poupancaMinutos, ligadoRemoto) {
         poupancaFase = 0
+        ultimaAtividadeMs.set(System.currentTimeMillis())
         if (!ligadoRemoto || poupancaMinutos == 0) return@LaunchedEffect
-        delay(poupancaMinutos * 60_000L)
-        poupancaFase = 1
-        for (s in POUPANCA_SEGUNDOS downTo 1) {
-            segundosPoupanca = s
-            delay(1_000L)
+        val limiteMs = poupancaMinutos * 60_000L
+        while (true) {
+            val decorrido = System.currentTimeMillis() - ultimaAtividadeMs.get()
+            val falta = limiteMs - decorrido
+            if (falta > 0L) {
+                delay(falta.coerceAtMost(5_000L))
+                continue
+            }
+            poupancaFase = 1
+            var cancelado = false
+            for (s in POUPANCA_SEGUNDOS downTo 1) {
+                if (System.currentTimeMillis() - ultimaAtividadeMs.get() < limiteMs) {
+                    poupancaFase = 0
+                    cancelado = true
+                    break
+                }
+                segundosPoupanca = s
+                delay(1_000L)
+            }
+            if (cancelado) continue
+            if (System.currentTimeMillis() - ultimaAtividadeMs.get() < limiteMs) {
+                poupancaFase = 0
+                continue
+            }
+            poupancaFase = 2
+            while (System.currentTimeMillis() - ultimaAtividadeMs.get() >= limiteMs) {
+                delay(500L)
+            }
+            poupancaFase = 0
         }
-        poupancaFase = 2
     }
     // Enquanto o teclado remoto esta ligado, o ecra nao adormece sozinho (a poupanca e feita pela app).
     // Com o ecra apagado por poupanca, o brilho fica no minimo.
@@ -412,12 +438,13 @@ fun AppTeclado(preferencias: SharedPreferences, escuro: Boolean, onAlternarTema:
     Box(
         modifier = Modifier
             .fillMaxSize()
-            // Regista qualquer toque como atividade, sem consumir o evento (o toque continua para o ecra).
+            // Regista qualquer toque como atividade sem provocar recomposicoes nem consumir o evento.
             .pointerInput(Unit) {
                 awaitPointerEventScope {
                     while (true) {
                         awaitPointerEvent(PointerEventPass.Initial)
-                        ultimaAtividade = System.currentTimeMillis()
+                        ultimaAtividadeMs.set(System.currentTimeMillis())
+                        if (poupancaFase != 0) poupancaFase = 0
                     }
                 }
             },
@@ -841,6 +868,9 @@ private fun EcraTouchpad(
     val barraPx = BARRA_DESLOCAMENTO_MM / 25.4f * xdpi
     var tamanho by remember { mutableStateOf(IntSize.Zero) }
     val dedosAtivos = remember { HashSet<Int>() }
+    val ultimoEnvioMove = remember { HashMap<Int, Long>() }
+    val movePendente = remember { HashMap<Int, Pair<Int, Int>>() }
+    val onEventoAtual by rememberUpdatedState(onEvento)
     // No Quadro Interativo o touchpad tem uma so area e explica o uso de 1 e 2 dedos.
     val noQuadro = ModoTouchpad.noQuadro()
     LaunchedEffect(tamanho) {
@@ -850,13 +880,13 @@ private fun EcraTouchpad(
     }
     // Ao sair do touchpad, os dedos que ainda estejam no ecra sao levantados no PC.
     DisposableEffect(Unit) {
-        onDispose { for (id in dedosAtivos.toList()) onEvento("up", id, 0, 0, null) }
+        onDispose { for (id in dedosAtivos.toList()) onEventoAtual("up", id, 0, 0, null) }
     }
     Box(
         modifier = Modifier
             .fillMaxSize()
             .onSizeChanged { tamanho = it }
-            .pointerInput(onEvento, barraPx) {
+            .pointerInput(barraPx) {
                 awaitPointerEventScope {
                     while (true) {
                         val evento = awaitPointerEvent()
@@ -872,7 +902,11 @@ private fun EcraTouchpad(
                             // Cada evento lista todos os dedos: um dedo que ja nao esta premido fica levantado,
                             // mesmo que o levantamento anterior se tenha perdido (ex.: gesto de 3 dedos cancelado pelo sistema).
                             if (!mudanca.pressed) {
-                                if (dedosAtivos.remove(id)) onEvento("up", id, x, y, null)
+                                if (dedosAtivos.remove(id)) {
+                                    movePendente.remove(id)?.let { (px, py) -> onEventoAtual("move", id, px, py, null) }
+                                    ultimoEnvioMove.remove(id)
+                                    onEventoAtual("up", id, x, y, null)
+                                }
                             } else if (dedosAtivos.add(id)) {
                                 // A area e decidida no inicio do toque: barra, esquerda ou direita.
                                 // No Quadro nao ha barra nem lados: toda a superficie e a mesma area.
@@ -882,16 +916,29 @@ private fun EcraTouchpad(
                                     mudanca.position.x < (largura - barraPx) / 2f -> "esquerda"
                                     else -> "direita"
                                 }
-                                onEvento("down", id, x, y, area)
+                                ultimoEnvioMove[id] = android.os.SystemClock.uptimeMillis()
+                                movePendente.remove(id)
+                                onEventoAtual("down", id, x, y, area)
                             } else if (mudanca.positionChanged()) {
-                                onEvento("move", id, x, y, null)
+                                // Limita "move" a ~40 Hz (~25 ms) por dedo para manter o Bluetooth sempre folgado.
+                                val agora = android.os.SystemClock.uptimeMillis()
+                                val ultimo = ultimoEnvioMove[id] ?: 0L
+                                if (agora - ultimo >= 25L) {
+                                    ultimoEnvioMove[id] = agora
+                                    movePendente.remove(id)
+                                    onEventoAtual("move", id, x, y, null)
+                                } else {
+                                    movePendente[id] = Pair(x, y)
+                                }
                             }
                             mudanca.consume()
                         }
                         // Dedos que desapareceram do evento (gesto cancelado pelo sistema) contam como levantados.
                         for (id in dedosAtivos.filter { it !in presentes }) {
                             dedosAtivos.remove(id)
-                            onEvento("up", id, 0, 0, null)
+                            movePendente.remove(id)
+                            ultimoEnvioMove.remove(id)
+                            onEventoAtual("up", id, 0, 0, null)
                         }
                     }
                 }
